@@ -19,3 +19,5 @@ from .learning_loss_for_al import LearningLoss4AL
 from .vaal import VAAL
 from .prototype_sampling import PrototypeSampling, PrototypeSamplingRandom
 from .batch_active_learning_at_scale import ClusterMargin
+from .batch_BALD import BatchBALD
+from .ensemble import Ensemble
