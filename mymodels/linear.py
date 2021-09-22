@@ -95,14 +95,16 @@ class Net1_dis(nn.Module):
 
 # net
 class LeNet(nn.Module):
-    def __init__(self, n_class):
+    def __init__(self, n_class=10, bayesian=False):
         super(LeNet, self).__init__()
         self.feature_extractor = Net1_fea()
         self.linear = Net1_clf(n_class)
         self.discriminator = Net1_dis()
+        self.bayesian = bayesian
     
     def forward(self, x):
         x, _ = self.feature_extractor(x)
+        x = F.dropout(x, p=0.2, training=self.bayesian)
         x, e1 = self.linear(x)
         return x, e1
 

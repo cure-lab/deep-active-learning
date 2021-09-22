@@ -10,7 +10,6 @@ class CoreSet(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args, tor=1e-4):
         super(CoreSet, self).__init__(X, Y, idxs_lb, net, handler, args)
         self.tor = tor
-        np.random.seed(args['manualSeed'])
 
     def furthest_first(self, X, X_set, n):
         m = np.shape(X)[0]

@@ -1,0 +1,1 @@
+strategy: <query_strategies.badge_sampling.BadgeSampling object at 0x7f4bc1051b00>

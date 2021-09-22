@@ -16,11 +16,12 @@ fi
 
 ########### RUN MAIN.py ###############
 dataset=mnist
-model=lenet
+model=LeNet
 start=100
 end=10000
-step=1000
+step=3000
 
+n_epoch=2
 
 # dataset=cifar10
 # model=resnet
@@ -42,7 +43,7 @@ step=1000
 
 
 strategies=(
-            'RandomSampling' \
+            # 'RandomSampling' \
             'CoreSet' \
             'BadgeSampling' \
             'BALDDropout' \
@@ -54,7 +55,7 @@ strategies=(
             'ActiveLearningByLearning' \
             'VAAL' \
             'LearningLoss4AL' \
-            'ClusterMargin' \
+            'ClusterMarginSampling' \
             )
             
 
@@ -63,7 +64,7 @@ save_path=save/${DATE}/${dataset}
 for strategy in "${strategies[@]}"
 do
 
-        for rand_idx in {1..5}
+        for rand_idx in 1
         do
             manualSeed=$((10*rand_idx))
             echo $strategy
@@ -72,6 +73,7 @@ do
                             --nStart $start \
                             --nEnd $end \
                             --nQuery $step \
+                            --n_epoch $n_epoch \
                             --dataset $dataset \
                             --strategy $strategy \
                             --rand_idx $rand_idx \
