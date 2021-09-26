@@ -18,5 +18,5 @@ from .wasserstein_adversarial import WAAL
 from .learning_loss_for_al import LearningLoss4AL
 from .vaal import VAAL
 from .batch_active_learning_at_scale import ClusterMarginSampling
-# from .batch_BALD import BatchBALD
+from .batch_BALD import BatchBALD
 from .ensemble import Ensemble
