@@ -86,19 +86,7 @@ class Ensemble(Strategy):
         en_var -= en_mean ** 2
         return en_mean, en_var
 
-    # 我这里是想把预测结果全部加在一起，直接求哪一行的数字最大，那么那一行就是整体预测的分类结果
-    # 但是我不确定需不需要给model输出结果套一层softmax，因为model最后一层是一个batch norm
-    def ensemble_predict(self,x):
 
-        f = True
-        for model in self.clf:
-            y_pred = model(x)
-            if f:
-                sum_y = y_pred
-                f = False
-            else:
-                sum_y += y_pred
-        return sum_y
 
     def ensemble_train(self, epoch, labeled_data, unlabeled_data, optimizer):
         for model in self.clf:
@@ -158,7 +146,7 @@ class Ensemble(Strategy):
 
         epoch = 1
         accCurrent = 0.
-        while accCurrent < 0.99:
+        while accCurrent < 0.1:
             accCurrent = self.ensemble_train(epoch, labeled_data, unlabeled_data, optimizer)
             epoch += 1
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
@@ -190,19 +178,36 @@ class Ensemble(Strategy):
                 P[idxs]  = pred.data.cpu()
         return P
 
+    # 我这里是想把预测结果全部加在一起，直接求哪一行的数字最大，那么那一行就是整体预测的分类结果
+    # 但是我不确定需不需要给model输出结果套一层softmax，因为model最后一层是一个batch norm
+    def ensemble_predict(self,x):
+
+        f = True
+        for model in self.clf:
+            y_pred = model(x)
+            if f:
+                sum_y = y_pred
+                f = False
+            else:
+                sum_y += y_pred
+        return sum_y
     # 首先求预测结果，然后计算所有模型在最终预测结果那一行的方差
-    # 比如模型结果是第二类，那么就计算【五个模型在预测值的第二行】的方差作为模型预测的不一致
-    # 这个原论文没有，学姐要是有更好的可以改掉
-    # 学姐记得检查一下，这个我不知道会不会写错了
+    # 比如模型结果是第二类，那么就计算[五个模型在预测值的第二行]的方差作为模型预测的不一致
+    # 这个原论文没有，要是有更好的可以改掉
     def ensemble_predict_var(self,x):
         pred_list = []
+        var_list = []
         y_pred = self.ensemble_predict(x)
         pred = y_pred.max(1)[1].data.cpu()
         for model in self.clf:
             y_pred = model(x)
-            pred_list.append(y_pred[:,pred])
-
-        return np.var(pred_list)
+            pred_list.append(y_pred)
+        for i in range(y_pred.shape[0]):
+            prob = [pred_list[j][i][pred[i]].data.cpu() for j in range(len(self.clf))]
+            # print(prob)
+            var_list.append(np.var(prob))
+        # print(x.shape,y_pred.shape,pred_list[0][0][0])
+        return var_list
 
     def query(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
@@ -218,7 +223,9 @@ class Ensemble(Strategy):
             for x, y, idxs in unlabeled_loader:
                 x, y = Variable(x.cuda()), Variable(y.cuda())
                 var = self.ensemble_predict_var(x)
-                P.append([var,idxs])
+                # print(idxs.shape)
+                for i,j in zip(var,idxs):
+                    P.append([i,j])
         P.sort(key = lambda x : x[0])
         raw_idx = []
         for idx, tup in enumerate(P):
