@@ -1,11 +1,16 @@
 import numpy as np
 from .strategy import Strategy
-from query_strategies.batchBALD import multi_bald
 import dataclasses
 import typing
-from query_strategies.batchBALD.batchBALD import acquire_batch
+from batchbald_redux.batchbald import get_batchbald_batch # pip install batchbald_redux
 from torch.utils.data import DataLoader
 import torch
+from torch.autograd import Variable
+import torch.nn.functional as F
+""""
+因为API使用了限制内存的方法toma，导致速度巨慢，可以尝试querry小batch（500张左右，gpu上不到一分钟）但不进行内存限制
+"""
+
 @dataclasses.dataclass
 class AcquisitionBatch:
     indices: typing.List[int]
@@ -14,34 +19,29 @@ class AcquisitionBatch:
 
 class BatchBALD(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(BatchBALD, self).__init__(X, Y, idxs_lb, net, handler, args)
+        super(BatchBALD_reduce, self).__init__(X, Y, idxs_lb, net, handler, args)
         self.net = net
         self.args = args
 
+    def compute_NKC(self, X,Y):
+        loader_te = DataLoader(self.handler(X, Y, transform=self.args['transformTest']),
+                            shuffle=False, **self.args['loader_te_args'])
+        K = 10 # MC采样
+        self.clf.train()
+        probs = torch.zeros([K, len(Y), len(np.unique(Y))])
+        with torch.no_grad():
+            for i in range(K):
+                for x, y, idxs in loader_te:
+                    x, y = Variable(x.cuda()), Variable(y.cuda())
+                    out, e1 = self.clf(x)
+                   
+                    probs[i][idxs] += F.softmax(out, dim=1).cpu().data
+                    
+            return probs.permute(1,0,2)
+        
     def query(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
-        available_loader = DataLoader(self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), transform=self.args['transform']), shuffle=True, **self.args['loader_tr_args'])
-        num_classes = 10
-        num_inference_samples = 5
-        available_sample_k = n # 我电脑上query很慢，后面看看原因
-        min_candidates_per_acquired_item = 20
-        min_remaining_percentage = 100
-        initial_percentage = 100
-        reduce_percentage = 0
-        device = torch.device("cuda")
-        model = self.net.bayesian_net #源代码里是这样的，model套一层sampler用来训练，query就直接用里面的net
-        batch = acquire_batch(
-                        bayesian_model=model,
-                        available_loader=available_loader,
-                        num_classes=num_classes,
-                        k=num_inference_samples,
-                        b=available_sample_k,
-                        min_candidates_per_acquired_item=min_candidates_per_acquired_item,
-                        min_remaining_percentage=min_remaining_percentage,
-                        initial_percentage=initial_percentage,
-                        reduce_percentage=reduce_percentage,
-                        device=device,
-                    )
-
-
+        prob_NKC = self.compute_NKC(self.X[idxs_unlabeled], self.Y[idxs_unlabeled])
+        with torch.no_grad():
+            batch = get_batchbald_batch(prob_NKC, n, 10000000) # 第三个参数不确定
         return idxs_unlabeled[batch.indices]
