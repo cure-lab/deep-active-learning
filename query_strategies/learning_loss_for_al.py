@@ -1,9 +1,9 @@
 '''Active Learning Procedure in PyTorch.
+
 Reference:
 [Yoo et al. 2019] Learning Loss for Active Learning (https://arxiv.org/abs/1905.03677)
 '''
 
-from torch.cuda import device
 import torch.nn.functional as F
 import numpy as np
 from .strategy import Strategy
@@ -27,6 +27,7 @@ from torchvision.datasets import CIFAR10
 
 class SubsetSequentialSampler(torch.utils.data.Sampler):
     r"""Samples elements sequentially from a given list of indices, without replacement.
+
     Arguments:
         indices (sequence): a sequence of indices
     """
@@ -52,41 +53,31 @@ EPOCHL = 120 # After 120 epochs, stop the gradient from the loss prediction modu
 MOMENTUM = 0.9
 WDECAY = 5e-4
 
-# 源代码写的只有四层，因此只能对应四层的目标网络，并且目标网络需要输出每层的结果作为lossnet的输入
+# 硬改成根据输入层数设计lossnet
 class LossNet(nn.Module):
-    def __init__(self, feature_sizes=[32, 16, 8, 4], num_channels=[16, 32, 64, 128], interm_dim=128):
+    def __init__(self, num_layers = 4):
+        # feature_sizes=[32, 16, 8, 4], num_channels=[16, 32, 64, 128]
         super(LossNet, self).__init__()
+        self.num_layers = num_layers
+        interm_dim = 128
+        feature_sizes = [4**(num+1) for num in range(num_layers)].reverse()
+        num_channels= [16 * (2**num) for num in range(num_layers)]
+        self.GAP_list = []
+        self.FC_list = []
+        for num in range(num_layers):
+            self.GAP_list.append(nn.AvgPool2d(feature_sizes[num]))
+            self.FC_list.append(nn.Linear(num_channels[num], interm_dim))
 
-        self.GAP1 = nn.AvgPool2d(feature_sizes[0])
-        self.GAP2 = nn.AvgPool2d(feature_sizes[1])
-        self.GAP3 = nn.AvgPool2d(feature_sizes[2])
-        self.GAP4 = nn.AvgPool2d(feature_sizes[3])
-
-        self.FC1 = nn.Linear(num_channels[0], interm_dim)
-        self.FC2 = nn.Linear(num_channels[1], interm_dim)
-        self.FC3 = nn.Linear(num_channels[2], interm_dim)
-        self.FC4 = nn.Linear(num_channels[3], interm_dim)
-
-        self.linear = nn.Linear(4 * interm_dim, 1)
+        self.linear = nn.Linear(feature_sizes[-1] * interm_dim, 1)
 
     def forward(self, features):
-        out1 = self.GAP1(features[0])
-        out1 = out1.view(out1.size(0), -1)
-        out1 = F.relu(self.FC1(out1))
-
-        out2 = self.GAP2(features[1])
-        out2 = out2.view(out2.size(0), -1)
-        out2 = F.relu(self.FC2(out2))
-
-        out3 = self.GAP3(features[2])
-        out3 = out3.view(out3.size(0), -1)
-        out3 = F.relu(self.FC3(out3))
-
-        out4 = self.GAP4(features[3])
-        out4 = out4.view(out4.size(0), -1)
-        out4 = F.relu(self.FC4(out4))
-
-        out = self.linear(torch.cat((out1, out2, out3, out4), 1))
+        out_list = []
+        for num in range(self.num_layers):
+            out = self.GAP_list[num](features[num])
+            out = out.view(out.size(0), -1)
+            out = F.relu(self.FC_list[num](out))
+            out_list.append(out)
+        out = self.linear(torch.cat(out_list, 1))
         return out
 
 
@@ -112,41 +103,35 @@ def LossPredLoss(input, target, margin=1.0, reduction='mean'):
 
     return loss
 
-
-class LearningLoss4AL(Strategy):
+class LearningLoss(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(LearningLoss4AL, self).__init__(X, Y, idxs_lb, net, handler, args)
+        super(LearningLoss, self).__init__(X, Y, idxs_lb, net, handler, args)
         self.loss_module = LossNet().cuda()
 
 
-    def train_epoch(self, epoch, loader_tr, optimizers,criterion):
+    def ll_train(self, epoch, loader_tr, optimizers,criterion):
         self.clf.train()
         self.loss_module.train()
         accFinal = 0.
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
-            x, y = x.to(self.device), y.to(self.device)
-            optimizers['backbone'].zero_grad()
-            optimizers['module'].zero_grad()
-
-            scores, _, features = self.clf(x, intermediate=True)
-            # print (len(scores), len(features))
-            # print ("output shape", scores[0].shape, scores[1].shape)
+            x, y = Variable(x.cuda()), Variable(y.cuda())
+            scores, e1 = self.clf(x)
+            features = self.clf.get_every_layer_out()
             target_loss = criterion(scores, y)
-
             if epoch > 120:
                 # After 120 epochs, stop the gradient from the loss prediction module propagated to the target model.
-                features[0] = features[0].detach()
-                features[1] = features[1].detach()
-                features[2] = features[2].detach()
-                features[3] = features[3].detach()
+                for feature in features:
+                    feature = feature.detach()
+
             pred_loss = self.loss_module(features)
             pred_loss = pred_loss.view(pred_loss.size(0))
 
             m_backbone_loss = torch.sum(target_loss) / target_loss.size(0)
-            m_module_loss 	= LossPredLoss(pred_loss, target_loss, margin=MARGIN)
-            loss			= m_backbone_loss + WEIGHT * m_module_loss
+            m_module_loss = LossPredLoss(pred_loss, target_loss, margin=MARGIN)
+            loss = m_backbone_loss + WEIGHT * m_module_loss
 
-
+            optimizers['backbone'].zero_grad()
+            optimizers['module'].zero_grad()
             loss.backward()
             optimizers['backbone'].step()
             optimizers['module'].step()
@@ -159,7 +144,7 @@ class LearningLoss4AL(Strategy):
             for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
         return accFinal / len(loader_tr.dataset.X)
 
-    def train(self, n_epoch, alpha=0.):
+    def train(self):
         def weight_reset(m):
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 m.reset_parameters()
@@ -177,26 +162,21 @@ class LearningLoss4AL(Strategy):
         optimizers = {'backbone': optim_backbone, 'module': optim_module}
         schedulers = {'backbone': sched_backbone, 'module': sched_module}
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
-
-        transform = self.args['transform_tr'] if not self.pretrained else None
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
-                                            transform=transform), shuffle=True,
+                                            transform=self.args['transform']), shuffle=True,
                                **self.args['loader_tr_args'])
 
-        epoch = 0
+        epoch = 1
         accCurrent = 0.
-        accOld = 0.
-        while epoch < n_epoch:
-			# epoch += 1
+        while accCurrent < 0.99:
             schedulers['backbone'].step()
             schedulers['module'].step()
-            accCurrent = self.train_epoch(epoch, loader_tr, optimizers, criterion)
+            accCurrent = self.ll_train(epoch, loader_tr, optimizers, criterion)
             epoch += 1
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
-            if abs(accCurrent - accOld) < 0.0002:
-                break
-            else:
-                accOld = accCurrent
+            if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
+                self.clf = self.net.apply(weight_reset)
+                optimizer = optim.Adam(self.clf.parameters(), lr=self.args['lr'], weight_decay=0)
 
     def get_uncertainty(self,models, unlabeled_loader):
         models['backbone'].eval()
@@ -207,7 +187,8 @@ class LearningLoss4AL(Strategy):
             for (inputs, labels,idx) in unlabeled_loader:
                 inputs = inputs.cuda()
                 # labels = labels.cuda()
-                scores, _, features = models['backbone'](inputs, intermediate= True)
+                scores, e1 = models['backbone'](inputs)
+                features = self.clf.get_every_layer_out()
                 pred_loss = models['module'](features)  # pred_loss = criterion(scores, labels) # ground truth loss
                 pred_loss = pred_loss.view(pred_loss.size(0))
 
@@ -219,11 +200,12 @@ class LearningLoss4AL(Strategy):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         unlabeled_loader = DataLoader(
             self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
-                         transform=self.args['transform_te']), shuffle=True,
+                         transform=self.args['transform']), shuffle=True,
             **self.args['loader_tr_args'])
         models = {'backbone': self.clf, 'module': self.loss_module}
         uncertainty = self.get_uncertainty(models, unlabeled_loader)
 
         # Index in ascending order
-        arg_sort = np.argsort(uncertainty)
-        return idxs_unlabeled[arg_sort[:n]]
+        arg = np.argsort(uncertainty)
+
+        return idxs_unlabeled[arg[:n]]
