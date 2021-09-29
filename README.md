@@ -23,7 +23,7 @@ We've been running our code in Python 3.7.
 |                K-Centers Greedy [8]               |   ICLR'18  |  ✅ |
 |                    Core-Set [8]                   |   ICLR'18  |  ✅ |
 |             Adversarial - DeepFool [9]            |  ArXiv'18  |  ✅ |
-|                    Ensembles [10]                  |   CVPR'18  |  ✅ |
+|             Uncertainty Ensembles [10]            |   NIPS'17  |  ✅ |
 | Uncertainty Sampling with Dropout Estimation [11] |   ICML'17  |  ✅ |
 |     Bayesian Active Learning Disagreement [11]    |   ICML'17  |  ✅ |
 |               Least Confidence [12]               |  IJCNN'14  |  ✅ |
@@ -69,12 +69,12 @@ TWD
 <!-- - [YuLi] (AAAI'19) (SPAL) Self-Paced Active Learning: Query the Right Thing at the Right Time [paper](https://ojs.aaai.org//index.php/AAAI/article/view/4445)  -->
 - [8] (CORE-SET, ICLR'18) Active Learning for Convolutional Neural Networks: A Core-Set Approach [paper](https://arxiv.org/pdf/1708.00489.pdf) [code](https://github.com/ozansener/active_learning_coreset)
 - [9] (DFAL, 2018) Adversarial Active Learning for Deep Networks: a Margin Based Approach
-- [10] (Emsemble, CVPR'18) The power of ensembles for active learning in image classification [paper](https://openaccess.thecvf.com/content_cvpr_2018/papers/Beluch_The_Power_of_CVPR_2018_paper.pdf) 
+- [10] (NIPS'17) Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles [paper](https://arxiv.org/pdf/1612.01474.pdf) [code](https://github.com/vvanirudh/deep-ensembles-uncertainty) 
 - [11] (DBAL, ICML'17) Deep Bayesian Active Learning with Image Data [paper](https://arxiv.org/pdf/1703.02910.pdf) [code](https://github.com/bnjasim/Deep-Bayesian-Active-Learning)
 - [12] (Least Confidence/Margin/Entropy, IJCNN'14) A New Active Labeling Method for Deep Learning, IJCNN, 2014
 <!-- - [13] (Least Confidence/Margin/Entropy, IJCNN'14) A New Active Labeling Method for Deep Learning, IJCNN, 2014 -->
 <!-- - [YuLi] (LAL, NIPS'17) Learning Active Learning from Data [paper](https://papers.nips.cc/paper/2017/file/8ca8da41fe1ebc8d3ca31dc14f5fc56c-Paper.pdf) [code](https://github.com/ksenia-konyushkova/LAL) -->
-<!-- - [Muxi] (NIPS'17) Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles [paper](https://arxiv.org/pdf/1612.01474.pdf) [code](https://github.com/vvanirudh/deep-ensembles-uncertainty) -->
+<!-- - [Muxi] (Emsemble, CVPR'18) The power of ensembles for active learning in image classification [paper](https://openaccess.thecvf.com/content_cvpr_2018/papers/Beluch_The_Power_of_CVPR_2018_paper.pdf)  -->
 
 
 
