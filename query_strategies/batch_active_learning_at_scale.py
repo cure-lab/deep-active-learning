@@ -150,7 +150,7 @@ class ClusterMarginSampling(Strategy):
         for idx,emb in enumerate(emb_select):
             i = hac_list[idx]
             cluster_list[i].append(data[idx])
-        cluster_list.sort(reverse=True, key=lambda x:len(x))
+        cluster_list.sort(key=lambda x:len(x))
         index_select = []
         cluster_index = 0
         print("Select cluster",len(set(hac_list)))
