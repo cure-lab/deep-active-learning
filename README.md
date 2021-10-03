@@ -4,7 +4,7 @@ This code was built based on [Jordan Ash's repository](https://github.com/Jordan
 
 # Dependencies
 
-To run this code fully, you'll need [PyTorch](https://pytorch.org/) (we're using version 1.4.0), [scikit-learn](https://scikit-learn.org/stable/), and [OpenML](https://github.com/openml/openml-python).
+To run this code fully, you'll need [PyTorch](https://pytorch.org/) (we're using version 1.4.0), [scikit-learn](https://scikit-learn.org/stable/).
 We've been running our code in Python 3.7.
 
 # Algorithms Implemented
