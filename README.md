@@ -29,6 +29,8 @@ We've been running our code in Python 3.7.
 |               Least Confidence [12]               |  IJCNN'14  |  ✅ |
 |                Margin Sampling [12]               |  IJCNN'14  |  ✅ |
 |               Entropy Sampling [12]               |  IJCNN'14  |  ✅ |
+|               uncertainGCN Sampling [13]          |  CVPR'21  |  ✅ |
+|               coreGCN Sampling [13]               |  CVPR'21  |  ✅ |
 
 
 
@@ -75,6 +77,7 @@ TWD
 <!-- - [13] (Least Confidence/Margin/Entropy, IJCNN'14) A New Active Labeling Method for Deep Learning, IJCNN, 2014 -->
 <!-- - [YuLi] (LAL, NIPS'17) Learning Active Learning from Data [paper](https://papers.nips.cc/paper/2017/file/8ca8da41fe1ebc8d3ca31dc14f5fc56c-Paper.pdf) [code](https://github.com/ksenia-konyushkova/LAL) -->
 <!-- - [Muxi] (Emsemble, CVPR'18) The power of ensembles for active learning in image classification [paper](https://openaccess.thecvf.com/content_cvpr_2018/papers/Beluch_The_Power_of_CVPR_2018_paper.pdf)  -->
+[13] (UncertainGCN, CoreGCN, CVPR'21) Sequential Graph Convolutional Network for Active Learning [paper](https://arxiv.org/pdf/2006.10219.pdf) [code](https://github.com/razvancaramalau/Sequential-GCN-for-Active-Learning)
 
 
 
