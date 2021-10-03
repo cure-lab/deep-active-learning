@@ -29,8 +29,8 @@ We've been running our code in Python 3.7.
 |               Least Confidence [12]               |  IJCNN'14  |  ✅ |
 |                Margin Sampling [12]               |  IJCNN'14  |  ✅ |
 |               Entropy Sampling [12]               |  IJCNN'14  |  ✅ |
-|               uncertainGCN Sampling [13]          |  CVPR'21  |  ✅ |
-|               coreGCN Sampling [13]               |  CVPR'21  |  ✅ |
+|               UncertainGCN Sampling [13]          |  CVPR'21  |  ✅ |
+|               CoreGCN Sampling [13]               |  CVPR'21  |  ✅ |
 
 
 
