@@ -15,8 +15,10 @@ from .active_learning_by_learning import ActiveLearningByLearning
 from .badge_sampling  import BadgeSampling
 from .baseline_sampling  import BaselineSampling
 from .wasserstein_adversarial import WAAL
-from .learning_loss_for_al import LearningLoss4AL
+from .learning_loss_for_al import LearningLoss
 from .vaal import VAAL
 from .batch_active_learning_at_scale import ClusterMarginSampling
-from .batch_BALD import BatchBALD
+# from .batch_BALD import BatchBALD
 from .ensemble import Ensemble
+from .uncertainGCN import uncertainGCN
+from .coreGCN import coreGCN

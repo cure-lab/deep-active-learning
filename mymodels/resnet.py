@@ -98,9 +98,9 @@ class resnet_fea(nn.Module):
 
 
 class resnet_clf(nn.Module):
-    def __init__(self, block, num_classes=10):
+    def __init__(self, block, n_class=10):
         super(resnet_clf, self).__init__()
-        self.linear = nn.Linear(128 * block.expansion, num_classes)
+        self.linear = nn.Linear(128 * block.expansion, n_class)
 
     def forward(self, x):
         # emb = x.view(x.size(0), -1)
@@ -121,7 +121,7 @@ class resnet_dis(nn.Module):
         return x
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, n_class=10, bayesians=False):
+    def __init__(self, block, num_blocks, n_class=10, bayesian=False):
         super(ResNet, self).__init__()
         # self.in_planes = 16
         self.embDim = 128 * block.expansion
@@ -131,7 +131,7 @@ class ResNet(nn.Module):
         # self.layer2 = self._make_layer(block, 32, num_blocks[1], stride=2)
         # self.layer3 = self._make_layer(block, 64, num_blocks[2], stride=2)
         # self.layer4 = self._make_layer(block, 128, num_blocks[3], stride=2)
-        # self.linear = nn.Linear(128 * block.expansion, num_classes)
+        # self.linear = nn.Linear(128 * block.expansion, n_class)
 
         # self.dis_fc1 = nn.Linear(512, 50)
         # self.dis_fc2 = nn.Linear(50, 1)
@@ -139,7 +139,7 @@ class ResNet(nn.Module):
         self.feature_extractor = resnet_fea(block, num_blocks)
         self.linear = resnet_clf(block, n_class)
         self.discriminator = resnet_dis(self.embDim)
-        self.bayesians = bayesians
+        self.bayesian = bayesian
 
     # def _make_layer(self, block, planes, num_blocks, stride):
     #     strides = [stride] + [1]*(num_blocks-1)
@@ -163,7 +163,7 @@ class ResNet(nn.Module):
     def forward(self, x, intermediate=False):
         out, in_values = self.feature_extractor(x)
         # apply dropout to approximate the bayesian networks
-        out = F.dropout(out, p=0.2, training=self.bayesians)
+        out = F.dropout(out, p=0.2, training=self.bayesian)
         # emb = emb.view(emb.size(0), -1)
         out, emb = self.linear(out)
         if intermediate == True:
@@ -175,20 +175,20 @@ class ResNet(nn.Module):
         return self.embDim
 
 
-def ResNet18(num_classes):
-    return ResNet(BasicBlock, [2,2,2,2], num_classes=num_classes)
+def ResNet18(n_class, bayesian):
+    return ResNet(BasicBlock, [2,2,2,2], n_class=n_class, bayesian=bayesian)
 
-def ResNet34(num_classes):
-    return ResNet(BasicBlock, [3,4,6,3], num_classes=num_classes)
+def ResNet34(n_class, bayesian):
+    return ResNet(BasicBlock, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet50(num_classes):
-    return ResNet(Bottleneck, [3,4,6,3], num_classes=num_classes)
+def ResNet50(n_class, bayesian):
+    return ResNet(Bottleneck, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet101(num_classes):
-    return ResNet(Bottleneck, [3,4,23,3], num_classes=num_classes)
+def ResNet101(n_class, bayesian):
+    return ResNet(Bottleneck, [3,4,23,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet152(num_classes):
-    return ResNet(Bottleneck, [3,8,36,3], num_classes=num_classes)
+def ResNet152(n_class, bayesian):
+    return ResNet(Bottleneck, [3,8,36,3], n_class=n_class, bayesian=bayesian)
 
 
 def test():

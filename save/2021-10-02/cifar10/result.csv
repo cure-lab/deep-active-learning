@@ -1,0 +1,10 @@
+CoreSet,1,budget,40,nStart,10,nQuery,5,currentQuery,5,accCompare,0.7075,0.785,0.07750000000000001,timePerIter,264.73620343208313
+CoreSet,1,budget,40,nStart,10,nQuery,5,currentQuery,10,accCompare,0.7075,0.8167,0.10919999999999996,timePerIter,254.79567742347717
+RandomSampling,1,budget,40,nStart,10,nQuery,5,currentQuery,5,accCompare,0.7328,0.7733,0.04049999999999998,timePerIter,0.004790782928466797
+CoreSet,1,budget,40,nStart,10,nQuery,5,currentQuery,15,accCompare,0.7075,0.8356,0.1281,timePerIter,244.75856351852417
+RandomSampling,1,budget,40,nStart,10,nQuery,5,currentQuery,10,accCompare,0.7328,0.7998,0.06699999999999995,timePerIter,0.0012569427490234375
+CoreSet,1,budget,40,nStart,10,nQuery,5,currentQuery,20,accCompare,0.7075,0.8468,0.13929999999999998,timePerIter,233.31160879135132
+CoreSet,1,budget,40,nStart,10,nQuery,5,currentQuery,25,accCompare,0.7075,0.8534,0.14590000000000003,timePerIter,222.76150107383728
+RandomSampling,1,budget,40,nStart,10,nQuery,5,currentQuery,15,accCompare,0.7328,0.8153,0.08250000000000002,timePerIter,0.0012693405151367188
+CoreSet,1,budget,40,nStart,10,nQuery,5,currentQuery,30,accCompare,0.7075,0.8648,0.1573,timePerIter,211.6395707130432
+RandomSampling,1,budget,40,nStart,10,nQuery,5,currentQuery,20,accCompare,0.7328,0.8241,0.09130000000000005,timePerIter,0.0011410713195800781

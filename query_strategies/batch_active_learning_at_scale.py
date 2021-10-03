@@ -99,7 +99,7 @@ def HAC(points_set):
 
 class ClusterMarginSampling(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(BatchScaleSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
+        super(ClusterMarginSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
         self.one_sample_step = True
     
     def prepare_emb(self):

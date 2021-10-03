@@ -2,16 +2,18 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+import torch.nn.init as init
 
 def get_wa_net(name):
     if name.lower() == 'fashionmnist':
         return Net1_fea, Net1_clf, Net1_dis
     # elif name.lower() == 'svhn':
     #     return VGG_10_fea, VGG_10_clf, VGG_10_dis
-    # elif name.lower() == 'cifar10':
-    #     return  VGG_10_fea, VGG_10_clf, VGG_10_dis
+    elif name.lower() == 'cifar10':
+        return  VGG_10_fea, VGG_10_clf, VGG_10_dis
     elif name.lower() == 'mnist': 
         return Net1_fea, Net1_clf, Net1_dis
+    
 
 
 # net_1  for Mnist and Fashion_mnist
@@ -131,7 +133,6 @@ class VGG_10_clf(nn.Module):
         self.fc2 = nn.Linear(50,10)
 
     def forward(self,x):
-
         e1 = F.relu(self.fc1(x))
         x = F.dropout(e1, training=self.training)
         x = self.fc2(x)
@@ -151,6 +152,11 @@ class VGG_10_dis(nn.Module):
         self.fc1 = nn.Linear(512, 50)
         self.fc2 = nn.Linear(50, 1)
 
+    def weight_init(self):
+        for block in self._modules:
+            for m in self._modules[block]:
+                kaiming_init(m)
+
     def forward(self,x):
 
         e1 = F.relu(self.fc1(x))
@@ -160,3 +166,13 @@ class VGG_10_dis(nn.Module):
 
         return x
 
+
+def kaiming_init(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        init.kaiming_normal(m.weight)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+    elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+        m.weight.data.fill_(1)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
