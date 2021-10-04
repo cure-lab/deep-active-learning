@@ -103,17 +103,17 @@ class ClusterMarginSampling(Strategy):
         self.one_sample_step = True
     
     def prepare_emb(self):
-        loader_te = DataLoader(self.handler(self.X, self.Y, transform=self.args['transformTest']), shuffle=False, **self.args['loader_te_args'])
+        loader_te = DataLoader(self.handler(self.X, self.Y, transform=self.args.transform_te), shuffle=False, **self.args.loader_te_args)
         self.clf.eval()
         create = True
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x, y = Variable(x.cuda()), Variable(y.cuda())
-                out, emb = self.clf(x) # resnet emb from last avg pool
+                out, emb, feature = self.clf(x,intermediate = True) # resnet emb from last avg pool
                 if create:
                     create = False
-                    emb_list = torch.zeros([len(self.Y), len(emb[1])])
-                emb_list[idxs] = emb.cpu().data
+                    emb_list = torch.zeros([len(self.Y), len(feature[-1].view(out.size(0), -1)[1])])
+                emb_list[idxs] = feature[-1].view(out.size(0), -1)[1].cpu().data
         return np.array(emb_list)
 
     def margin_data(self, n):
@@ -132,7 +132,7 @@ class ClusterMarginSampling(Strategy):
             # print(self.emb_list[0])
             # self.HAC_dict = HAC(self.emb_list)
             # self.HAC_list = AgglomerativeClustering(n_clusters=None,distance_threshold = distance_threshold,linkage = 'average').fit(self.emb_list)
-            self.HAC_list = AgglomerativeClustering(n_clusters=10, linkage = 'average').fit(self.emb_list)
+            self.HAC_list = AgglomerativeClustering(n_clusters=20, linkage = 'average').fit(self.emb_list)
 
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         n = min(k*10,len(self.Y[idxs_unlabeled]))
