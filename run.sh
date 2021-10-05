@@ -1,4 +1,9 @@
 #!/bin/bash
+#SBATCH --job-name=TEST
+#SBATCH --mail-user=yuli@cse.cuhk.edu.hk
+#SBATCH --mail-type=ALL
+#SBATCH --output=./save/
+#SBATCH --gres=gpu:2 
 
 HOST=$(hostname)
 echo "Current host is: $HOST"
@@ -15,24 +20,24 @@ if [ ! -d "$DIRECTORY" ]; then
 fi
 
 ########### RUN MAIN.py ###############
-# dataset=mnist
-# model=LeNet
-# start=2
-# end=20
-# step=2
-# n_epoch=50
+dataset=mnist
+model=LeNet
+start=2
+end=20
+step=2
+n_epoch=50
 
-dataset=cifar10
-model=ResNet18
-start=10
-end=40
-step=5
-n_epoch=200
+# dataset=cifar10
+# model=ResNet18
+# start=10
+# end=40
+# step=5
+# n_epoch=200
 
 # dataset=gtsrb
 
 strategies=(
-            'RandomSampling' \
+            # 'RandomSampling' \
             # 'CoreSet' \
             # 'BadgeSampling' \
             # 'BALDDropout' \
@@ -40,7 +45,7 @@ strategies=(
             # 'LeastConfidenceDropout' \
             # 'KMeansSampling' \
             # 'AdversarialBIM' \
-            # 'WAAL' \
+            'WAAL' \
             # 'ActiveLearningByLearning' \
             # 'VAAL' \
             # 'LearningLoss' \

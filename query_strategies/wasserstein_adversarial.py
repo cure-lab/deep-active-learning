@@ -67,7 +67,7 @@ class WAAL(Strategy):
         self.args    = args
 
         self.n_pool  = len(Y)
-        self.num_class = self.args['num_class']
+        self.num_class = self.args.num_class
         use_cuda     = torch.cuda.is_available()
         self.device  = torch.device("cuda:0" if use_cuda else "cpu")
 
@@ -92,9 +92,9 @@ class WAAL(Strategy):
 
         # setting three optimizers
 
-        opt_fea = optim.SGD(self.fea.parameters(),**self.args['optimizer_args'])
-        opt_clf = optim.SGD(self.clf.parameters(),**self.args['optimizer_args'])
-        opt_dis = optim.SGD(self.dis.parameters(),**self.args['optimizer_args'])
+        opt_fea = optim.SGD(self.fea.parameters(),**self.args.optimizer_args)
+        opt_clf = optim.SGD(self.clf.parameters(),**self.args.optimizer_args)
+        opt_dis = optim.SGD(self.dis.parameters(),**self.args.optimizer_args)
 
         # setting idxs_lb and idx_ulb
         idxs_lb_train = np.arange(self.n_pool)[self.idxs_lb]
@@ -105,9 +105,9 @@ class WAAL(Strategy):
         # gamma_ratio = 1
 
         # Data-loading (Redundant Trick)
-        transform = self.args['transform_tr'] if not self.pretrained else None        
+        transform = self.args.transform_tr if not self.pretrained else None        
         loader_tr = DataLoader(self.train_handler(self.X[idxs_lb_train],self.Y[idxs_lb_train],self.X[idx_ulb_train],self.Y[idx_ulb_train],
-                transform = transform), shuffle= True, **self.args['loader_tr_args'])
+                transform = transform), shuffle= True, **self.args.loader_tr_args)
 
         accCurrent = 0.
         accOld = 0.
@@ -219,8 +219,8 @@ class WAAL(Strategy):
 
     def predict(self,X,Y):
         print ("start to predict...")
-        loader_te = DataLoader(self.test_handler(X, Y, transform=self.args['transform_te']),
-                               shuffle=False, **self.args['loader_te_args'])
+        loader_te = DataLoader(self.test_handler(X, Y, transform=self.args.transform_te),
+                               shuffle=False, **self.args.loader_te_args)
 
         self.fea.eval()
         self.clf.eval()
@@ -246,8 +246,8 @@ class WAAL(Strategy):
         :return:
         """
 
-        loader_te = DataLoader(self.test_handler(X, Y, transform=self.args['transform_te']),
-                               shuffle=False, **self.args['loader_te_args'])
+        loader_te = DataLoader(self.test_handler(X, Y, transform=self.args.transform_te),
+                               shuffle=False, **self.args.loader_te_args)
 
         self.fea.eval()
         self.clf.eval()
@@ -274,8 +274,8 @@ class WAAL(Strategy):
         :return:
         """
 
-        loader_te = DataLoader(self.test_handler(X, Y, transform=self.args['transform_te']),
-                               shuffle=False, **self.args['loader_te_args'])
+        loader_te = DataLoader(self.test_handler(X, Y, transform=self.args.transform_te),
+                               shuffle=False, **self.args.loader_te_args)
 
         self.fea.eval()
         self.dis.eval()

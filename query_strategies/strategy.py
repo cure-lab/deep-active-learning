@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from copy import deepcopy
-from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time
+from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time
 import time
 
 torch.backends.cudnn.benchmark = True
@@ -27,7 +27,6 @@ class Strategy:
             self.preprocessing = args.preprocessing
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.clf = net.to(self.device)
-        self.net = net.to(self.device)
 
         if self.pretrained: # use the latent vector of the inputs as training data
             self.X_p = self.get_pretrained_embedding(X, Y)
@@ -46,11 +45,18 @@ class Strategy:
         train_loss = 0.
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
             x, y = x.to(self.device), y.to(self.device) 
+            nan_mask = torch.isnan(x)
+            if nan_mask.any():
+                raise RuntimeError(f"Found NAN in input indices: ", nan_mask.nonzero())
 
             # exit()
             optimizer.zero_grad()
 
             out, e1 = self.clf(x) if not self.pretrained else self.clf.module.classifier(x)
+            nan_mask_out = torch.isnan(y)
+            if nan_mask_out.any():
+                raise RuntimeError(f"Found NAN in output indices: ", nan_mask.nonzero())
+                
             loss = F.cross_entropy(out, y)
 
             train_loss += loss.item()
@@ -74,7 +80,7 @@ class Strategy:
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear): 
                 m.reset_parameters()
         
-        self.clf =  self.net.apply(weight_reset)
+        self.clf =  self.clf.apply(weight_reset)
         self.clf = nn.DataParallel(self.clf).to(self.device)
         parameters = self.clf.parameters() if not self.pretrained else self.clf.module.classifier.parameters()
         optimizer = optim.SGD(parameters, lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
@@ -109,17 +115,17 @@ class Strategy:
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
 
-                print_log('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
+                print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
                                                                                    need_time, current_learning_rate
                                                                                    ) \
                 + ' [Best : Train Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(True),
-                                                               1. - recorder.max_accuracy(True)), self.args.log)
+                                                               1. - recorder.max_accuracy(True)))
                 
                 
                 recorder.update(epoch, train_los, train_acc, 0, 0)
 
                 # The converge condition 
-                if abs(previous_loss - train_los) < 0.001:
+                if abs(previous_loss - train_los) < 0.0001:
                     break
                 else:
                     previous_loss = train_los

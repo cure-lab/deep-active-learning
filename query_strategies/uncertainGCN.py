@@ -52,7 +52,7 @@ class uncertainGCN(Strategy):
         ind_idxs_lb = list(np.nonzero(self.idxs_lb)[0])
 
         features = self.get_embedding(self.X[subset+ind_idxs_lb], self.Y[subset+ind_idxs_lb])
-        features = functional.normalize(features)
+        features = functional.normalize(features).to(self.device)
         adj = aff_to_adj(features).to(self.device)
 
         binary_labels = torch.cat((torch.zeros([SUBSET, 1]),(torch.ones([len(ind_idxs_lb),1]))),0)
@@ -88,6 +88,7 @@ class uncertainGCN(Strategy):
             s_margin = self.args.s_margin 
             scores_median = np.squeeze(torch.abs(scores[:SUBSET] - s_margin).detach().cpu().numpy())
             arg = np.argsort(-(scores_median))
+
 
 
         print("Max confidence value: ",torch.max(scores.data))

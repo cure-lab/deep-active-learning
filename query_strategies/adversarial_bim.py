@@ -16,7 +16,7 @@ class AdversarialBIM(Strategy):
 		nx.requires_grad_()
 		eta = torch.zeros(nx.shape)
 
-		out, e1 = self.clf(nx+eta)
+		out, e1 = self.clf((nx+eta).to(self.device))
 		py = out.max(1)[1]
 		ny = out.max(1)[1]
 		while py.item() == ny.item():
@@ -26,7 +26,7 @@ class AdversarialBIM(Strategy):
 			eta += self.eps * torch.sign(nx.grad.data)
 			nx.grad.data.zero_()
 
-			out, e1 = self.clf(nx+eta)
+			out, e1 = self.clf((nx+eta).to(self.device))
 			py = out.max(1)[1]
 
 		return (eta*eta).sum()
@@ -40,7 +40,7 @@ class AdversarialBIM(Strategy):
 		else:
 			self.clf.classifier.eval()
 		dis = np.zeros(idxs_unlabeled.shape)
-		transform = self.args['transform_te'] if not self.pretrained else self.preprocessing
+		transform = self.args.transform_te if not self.pretrained else self.preprocessing
 		data_pool = self.handler(self.X[idxs_unlabeled], self.Y[idxs_unlabeled], 
 						transform=transform)
 		for i in range(len(idxs_unlabeled)):
