@@ -45,8 +45,8 @@ strategies=(
             # 'LeastConfidenceDropout' \
             # 'KMeansSampling' \
             # 'AdversarialBIM' \
-            'WAAL' \
-            # 'ActiveLearningByLearning' \
+            # 'WAAL' \
+            'ActiveLearningByLearning' \
             # 'VAAL' \
             # 'LearningLoss' \
             # 'ClusterMarginSampling' \
@@ -66,6 +66,8 @@ do
         do
             echo $strategy
             echo $dataset
+            manualSeed=$((10*$rand_idx))
+            echo $manualSeed
             python main.py  --model $model \
                             --nStart $start \
                             --nEnd $end \
@@ -74,7 +76,8 @@ do
                             --dataset $dataset \
                             --strategy $strategy \
                             --rand_idx $rand_idx \
-                            --save_path $save_path 
+                            --save_path $save_path \
+                            --manualSeed $manualSeed
         done
     # done
 done

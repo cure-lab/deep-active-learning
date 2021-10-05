@@ -1,6 +1,7 @@
 import numpy as np
 from .strategy import Strategy
 
+# Implementation of the paper: Active Learning by learning
 # Publised in AAAI'15, Natianal Twiwan University
 # https://www.csie.ntu.edu.tw/~htlin/paper/doc/aaai15albl.pdf
 # Main Idea: Choosing and blending different AL strategies under different scenarios.
@@ -21,8 +22,9 @@ class ActiveLearningByLearning(Strategy):
 	def query(self, n):
 		if not self.start:
 			idxs_labeled = np.arange(self.n_pool)[self.idxs_lb]
-			P = self.predict(self.X[idxs_labeled], self.Y.numpy()[idxs_labeled])
-			fn = (P.numpy() == self.Y.numpy()[idxs_labeled]).astype(float)
+			pred_probs = self.predict_prob(self.X[idxs_labeled], self.Y.numpy()[idxs_labeled])
+			pred_labels = pred_probs.max(1)[1]
+			fn = (pred_labels.numpy() == self.Y.numpy()[idxs_labeled]).astype(float)
 			reward = (fn / self.aw[self.idxs_lb]).mean()
 
 			self.w[self.s_idx] *= np.exp(self.pmin/2.0 * (reward + 1.0 / self.last_p * np.sqrt(np.log(self.n_strategy / self.delta) / self.n_strategy)))

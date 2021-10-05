@@ -65,7 +65,7 @@ class LearningAL(Strategy):
         # the regression model to predict the error of an unlabeled image
         lal_model = LALmodel(all_data_for_lal, all_labels_for_lal)
 
-
+        
 
         return lal_model
 
@@ -74,7 +74,7 @@ class LearningAL(Strategy):
         all_data_for_lal = 
         all_labels_for_lal = 
         lalModel = self.train_lal_model(all_data_for_lal, all_labels_for_lal)
-        
+
         # data
         known_labels = self.Y[self.idxs_lb]
 

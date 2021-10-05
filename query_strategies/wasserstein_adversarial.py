@@ -67,7 +67,7 @@ class WAAL(Strategy):
         self.args    = args
 
         self.n_pool  = len(Y)
-        self.num_class = self.args.num_class
+        self.num_class = self.args.n_class
         use_cuda     = torch.cuda.is_available()
         self.device  = torch.device("cuda:0" if use_cuda else "cpu")
 
@@ -92,9 +92,9 @@ class WAAL(Strategy):
 
         # setting three optimizers
 
-        opt_fea = optim.SGD(self.fea.parameters(),**self.args.optimizer_args)
-        opt_clf = optim.SGD(self.clf.parameters(),**self.args.optimizer_args)
-        opt_dis = optim.SGD(self.dis.parameters(),**self.args.optimizer_args)
+        opt_fea = optim.SGD(self.fea.parameters(),lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
+        opt_clf = optim.SGD(self.clf.parameters(),lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
+        opt_dis = optim.SGD(self.dis.parameters(),lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
 
         # setting idxs_lb and idx_ulb
         idxs_lb_train = np.arange(self.n_pool)[self.idxs_lb]
@@ -225,16 +225,20 @@ class WAAL(Strategy):
         self.fea.eval()
         self.clf.eval()
 
-        P = torch.zeros(len(Y), dtype=Y.dtype)
+        # P = torch.zeros(len(Y), dtype=Y.dtype)
+        correct = 0.
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x, y = x.to(self.device), y.to(self.device)
                 latent,_  = self.fea(x)
                 out, _  = self.clf(latent)
                 pred    = out.max(1)[1]
-                P[idxs] = pred.cpu()
+                # P[idxs] = pred.cpu()
+                correct +=  (y == pred).sum().item() 
+                
+            test_acc = 1. * correct / len(Y)
 
-        return P
+        return test_acc
 
 
     def predict_prob(self,X,Y):
