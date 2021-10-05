@@ -108,7 +108,7 @@ class ClusterMarginSampling(Strategy):
         create = True
         with torch.no_grad():
             for x, y, idxs in loader_te:
-                x, y = Variable(x.cuda()), Variable(y.cuda())
+                x, y = Variable(x.to(self.device)), Variable(y.to(self.device))
                 out, emb, feature = self.clf(x,intermediate = True) # resnet emb from last avg pool
                 if create:
                     create = False
