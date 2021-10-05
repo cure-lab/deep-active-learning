@@ -141,14 +141,14 @@ class VAE(nn.Module):
                 kaiming_init(block)
 
     def forward(self, x):
-        print('x',x.shape)
+        # print('x',x.shape)
         z = self._encode(x)
-        print('z',z.shape)
+        # print('z',z.shape)
         mu, logvar = self.fc_mu(z), self.fc_logvar(z)
         z = self.reparameterize(mu, logvar)
-        print('z', z.shape)
+        # print('z', z.shape)
         x_recon = self._decode(z)
-        print('x_recon', x_recon.shape)
+        # print('x_recon', x_recon.shape)
 
         return x_recon, z, mu, logvar
 
@@ -327,11 +327,12 @@ class Solver:
                     lab_real_preds = lab_real_preds.to(device)
                     unlab_real_preds = unlab_real_preds.to(device)
 
+                print(lab_real_preds,unlab_real_preds)
                 # 我加的不然新的torch版本没法运行
-                lab_real_preds = lab_real_preds.reshape(-1, 1)
-                lab_real_preds = lab_real_preds.detach()
-                unlab_real_preds = unlab_real_preds.reshape(-1, 1)
-                unlab_real_preds = unlab_real_preds.detach()
+                # lab_real_preds = lab_real_preds.reshape(-1, 1)
+                # lab_real_preds = lab_real_preds.detach()
+                # unlab_real_preds = unlab_real_preds.reshape(-1, 1)
+                # unlab_real_preds = unlab_real_preds.detach()
 
                 dsc_loss = self.bce_loss(labeled_preds, lab_real_preds) + \
                            self.bce_loss(unlabeled_preds, unlab_real_preds)
@@ -365,10 +366,10 @@ class Solver:
                 if self.args.cuda:
                     lab_real_preds = lab_real_preds.to(device)
                     unlab_fake_preds = unlab_fake_preds.to(device)
-                lab_real_preds = lab_real_preds.reshape(-1, 1)
-                lab_real_preds = lab_real_preds.detach()
-                unlab_fake_preds = unlab_fake_preds.reshape(-1, 1)
-                unlab_fake_preds = unlab_fake_preds.detach()
+                # lab_real_preds = lab_real_preds.reshape(-1, 1)
+                # lab_real_preds = lab_real_preds.detach()
+                # unlab_fake_preds = unlab_fake_preds.reshape(-1, 1)
+                # unlab_fake_preds = unlab_fake_preds.detach()
                 dsc_loss = self.bce_loss(labeled_preds, lab_real_preds) + \
                            self.bce_loss(unlabeled_preds, unlab_fake_preds)
 
@@ -455,7 +456,8 @@ class Solver:
 class VAAL(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
         super(VAAL, self).__init__(X, Y, idxs_lb, net, handler, args)
-        if args['channels'] == 3:
+
+        if self.args.channels == 3:
             self.vae = VAE(32).to(device)
             self.discriminator = Discriminator(32).to(device)
         else:
@@ -538,12 +540,17 @@ class VAAL(Strategy):
                 lab_real_preds = torch.ones(labeled_imgs.size(0)).to(device)
                 unlab_real_preds = torch.ones(unlabeled_imgs.size(0)).to(device)
 
-
+                # print(labeled_preds,unlabeled_preds,mu[0],unlabeled_imgs[0])
                 # 我加的不然新的torch版本没法运行
                 lab_real_preds = lab_real_preds.reshape(-1, 1)
                 lab_real_preds = lab_real_preds.detach()
                 unlab_real_preds = unlab_real_preds.reshape(-1, 1)
                 unlab_real_preds = unlab_real_preds.detach()
+
+                # print(torch.isnan(labeled_preds).int().sum().cpu())
+                if torch.isnan(labeled_preds).int().sum() or torch.isnan(unlabeled_preds).int().sum():
+                    print('NAN data')
+                    continue
 
                 dsc_loss = self.bce_loss(labeled_preds, lab_real_preds) + \
                            self.bce_loss(unlabeled_preds, unlab_real_preds)
@@ -581,6 +588,12 @@ class VAAL(Strategy):
                 lab_real_preds = lab_real_preds.detach()
                 unlab_fake_preds = unlab_fake_preds.reshape(-1, 1)
                 unlab_fake_preds = unlab_fake_preds.detach()
+
+                if torch.isnan(labeled_preds).int().sum() or torch.isnan(unlabeled_preds).int().sum():
+                    print('NAN data')
+                    continue
+
+                
                 dsc_loss = self.bce_loss(labeled_preds, lab_real_preds) + \
                            self.bce_loss(unlabeled_preds, unlab_fake_preds)
 
@@ -613,14 +626,14 @@ class VAAL(Strategy):
 
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         idxs_labeled = np.arange(self.n_pool)[self.idxs_lb]
-        transform = self.args['transform_tr'] if not self.pretrained else None
+        transform = self.args.transform_tr if not self.pretrained else None
         unlabeled_loader = DataLoader(self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
                                             transform=transform), shuffle=True,
-                               **self.args['loader_tr_args'])
+                               **self.args.loader_tr_args)
         labeled_loader = DataLoader(
             self.handler(self.X[idxs_labeled], torch.Tensor(self.Y.numpy()[idxs_labeled]).long(),
                          transform=transform), shuffle=True,
-            **self.args['loader_tr_args'])
+            **self.args.loader_tr_args)
         labeled_data = self.read_data(labeled_loader)
         unlabeled_data = self.read_data(unlabeled_loader, labels=False)
         optim_vae = optim.Adam(self.vae.parameters(), lr=5e-4)
@@ -628,12 +641,12 @@ class VAAL(Strategy):
         optim_discriminator = optim.Adam(self.discriminator.parameters(), lr=5e-4)
 
         self.clf = self.net.apply(weight_reset).to(device)
-        optimizer = optim.Adam(self.clf.parameters(), lr=self.args['optimizer_args']['lr'], weight_decay=0)
+        optimizer = optim.Adam(self.clf.parameters(), lr=self.args.lr, weight_decay=0)
 
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
                                             transform=transform), shuffle=True,
-                               **self.args['loader_tr_args'])
+                               **self.args.loader_tr_args)
 
         epoch = 1
         accCurrent = 0.
@@ -643,7 +656,7 @@ class VAAL(Strategy):
             epoch += 1
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
             #
-            if abs(accCurrent-accOld) < 0.0002:  # reset if not converging
+            if abs(accCurrent-accOld) < 0.001:  # reset if not converging
                 break
             else: 
                 accOld = accCurrent
@@ -654,8 +667,8 @@ class VAAL(Strategy):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         unlabeled_loader = DataLoader(
             self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
-                         transform=self.args['transform_te']), shuffle=True,
-            **self.args['loader_tr_args'])
+                         transform=self.args.transform_te), shuffle=True,
+            **self.args.loader_tr_args)
         querry_indices = self.sampler.sample(self.vae,
                                              self.discriminator,
                                              unlabeled_loader,

@@ -60,22 +60,28 @@ class LossNet(nn.Module):
         super(LossNet, self).__init__()
         self.num_layers = num_layers
         interm_dim = 128
-        feature_sizes = [4**(num+1) for num in range(num_layers)].reverse()
+        feature_sizes = [2**(num+2) for num in range(num_layers)]
+        feature_sizes.reverse()
         num_channels= [16 * (2**num) for num in range(num_layers)]
         self.GAP_list = []
         self.FC_list = []
         for num in range(num_layers):
-            self.GAP_list.append(nn.AvgPool2d(feature_sizes[num]))
-            self.FC_list.append(nn.Linear(num_channels[num], interm_dim))
+            self.GAP_list.append(nn.AvgPool2d(feature_sizes[num]).cuda())
+            self.FC_list.append(nn.Linear(num_channels[num], interm_dim).cuda())
 
         self.linear = nn.Linear(feature_sizes[-1] * interm_dim, 1)
 
     def forward(self, features):
         out_list = []
+        # for feature in features:
+        #     print(len(features))
+        #     print(feature.shape)     
         for num in range(self.num_layers):
+            
             out = self.GAP_list[num](features[num])
             out = out.view(out.size(0), -1)
-            out = F.relu(self.FC_list[num](out))
+            out = self.FC_list[num](out)
+            out = F.relu(out)
             out_list.append(out)
         out = self.linear(torch.cat(out_list, 1))
         return out
@@ -115,14 +121,12 @@ class LearningLoss(Strategy):
         accFinal = 0.
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
             x, y = Variable(x.cuda()), Variable(y.cuda())
-            scores, e1 = self.clf(x)
-            features = self.clf.get_every_layer_out()
+            scores, e1, features = self.clf(x,intermediate = True)
             target_loss = criterion(scores, y)
             if epoch > 120:
                 # After 120 epochs, stop the gradient from the loss prediction module propagated to the target model.
                 for feature in features:
                     feature = feature.detach()
-
             pred_loss = self.loss_module(features)
             pred_loss = pred_loss.view(pred_loss.size(0))
 
@@ -144,12 +148,12 @@ class LearningLoss(Strategy):
             for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
         return accFinal / len(loader_tr.dataset.X)
 
-    def train(self):
+    def train(self,alpha=0, n_epoch=80):
         def weight_reset(m):
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 m.reset_parameters()
-
-        # n_epoch = self.args['n_epoch']
+        transform = self.args.transform_tr if not self.pretrained else None
+        # n_epoch = self.args.n_epoch']
         self.clf = self.net.apply(weight_reset).cuda()
         criterion = nn.CrossEntropyLoss(reduction='none')
         optim_backbone = optim.SGD(self.clf.parameters(), lr=LR,
@@ -163,12 +167,12 @@ class LearningLoss(Strategy):
         schedulers = {'backbone': sched_backbone, 'module': sched_module}
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
-                                            transform=self.args['transform']), shuffle=True,
-                               **self.args['loader_tr_args'])
+                                            transform=transform), shuffle=True,
+                               **self.args.loader_tr_args)
 
         epoch = 1
         accCurrent = 0.
-        while accCurrent < 0.99:
+        while epoch < n_epoch:
             schedulers['backbone'].step()
             schedulers['module'].step()
             accCurrent = self.ll_train(epoch, loader_tr, optimizers, criterion)
@@ -176,7 +180,7 @@ class LearningLoss(Strategy):
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
             if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
                 self.clf = self.net.apply(weight_reset)
-                optimizer = optim.Adam(self.clf.parameters(), lr=self.args['lr'], weight_decay=0)
+                optimizer = optim.Adam(self.clf.parameters(), lr=self.args.lr, weight_decay=0)
 
     def get_uncertainty(self,models, unlabeled_loader):
         models['backbone'].eval()
@@ -187,8 +191,7 @@ class LearningLoss(Strategy):
             for (inputs, labels,idx) in unlabeled_loader:
                 inputs = inputs.cuda()
                 # labels = labels.cuda()
-                scores, e1 = models['backbone'](inputs)
-                features = self.clf.get_every_layer_out()
+                scores, e1, features = models['backbone'](inputs,intermediate = True)
                 pred_loss = models['module'](features)  # pred_loss = criterion(scores, labels) # ground truth loss
                 pred_loss = pred_loss.view(pred_loss.size(0))
 
@@ -200,8 +203,8 @@ class LearningLoss(Strategy):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         unlabeled_loader = DataLoader(
             self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
-                         transform=self.args['transform']), shuffle=True,
-            **self.args['loader_tr_args'])
+                         transform=self.args.transform_te), shuffle=True,
+            **self.args.loader_tr_args)
         models = {'backbone': self.clf, 'module': self.loss_module}
         uncertainty = self.get_uncertainty(models, unlabeled_loader)
 
