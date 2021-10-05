@@ -249,214 +249,11 @@ class AdversarySampler:
         return querry_pool_indices
 
 
-class Solver:
-    def __init__(self, args, test_dataloader):
-        self.args = args
-        self.test_dataloader = test_dataloader
-
-        self.bce_loss = nn.BCELoss()
-        self.mse_loss = nn.MSELoss()
-        self.ce_loss = nn.CrossEntropyLoss()
-
-        self.sampler = AdversarySampler(self.args.budget)
-
-    def read_data(self, dataloader, labels=True):
-        if labels:
-            while True:
-                for img, label, _ in dataloader:
-                    yield img, label
-        else:
-            while True:
-                for img, _, _ in dataloader:
-                    yield img
-
-    def train(self, querry_dataloader,  vae, discriminator, unlabeled_dataloader):
-        self.args.train_iterations = (self.args.num_images * self.args.train_epochs) // self.args.batch_size
-        lr_change = self.args.train_iterations // 4
-        labeled_data = self.read_data(querry_dataloader)
-        unlabeled_data = self.read_data(unlabeled_dataloader, labels=False)
-
-        optim_vae = optim.Adam(vae.parameters(), lr=5e-4)
-        # optim_task_model = optim.SGD(task_model.parameters(), lr=0.01, weight_decay=5e-4, momentum=0.9)
-        optim_discriminator = optim.Adam(discriminator.parameters(), lr=5e-4)
-
-        vae.train()
-        discriminator.train()
-
-
-        if self.args.cuda:
-            vae = vae.to(device)
-            discriminator = discriminator.to(device)
-            # task_model = task_model.to(device)
-
-        best_acc = 0
-        for iter_count in range(self.args.train_iterations):
-            # if iter_count is not 0 and iter_count % lr_change == 0:
-            #     # for param in optim_task_model.param_groups:
-            #     #     param['lr'] = param['lr'] / 10
-            labeled_imgs, labels = next(labeled_data)
-            unlabeled_imgs = next(unlabeled_data)
-
-            if self.args.cuda:
-                labeled_imgs = labeled_imgs.to(device)
-                unlabeled_imgs = unlabeled_imgs.to(device)
-                labels = labels.to(device)
-
-            # # task_model step
-            # preds = task_model(labeled_imgs)
-            # task_loss = self.ce_loss(preds, labels)
-            # optim_task_model.zero_grad()
-            # task_loss.backward()
-            # optim_task_model.step()
-
-            # VAE step
-            for count in range(self.args.num_vae_steps):
-                recon, z, mu, logvar = vae(labeled_imgs)
-                unsup_loss = self.vae_loss(labeled_imgs, recon, mu, logvar, self.args.beta)
-                unlab_recon, unlab_z, unlab_mu, unlab_logvar = vae(unlabeled_imgs)
-                transductive_loss = self.vae_loss(unlabeled_imgs,
-                                                  unlab_recon, unlab_mu, unlab_logvar, self.args.beta)
-
-                labeled_preds = discriminator(mu)
-                unlabeled_preds = discriminator(unlab_mu)
-
-                lab_real_preds = torch.ones(labeled_imgs.size(0))
-                unlab_real_preds = torch.ones(unlabeled_imgs.size(0))
-
-                if self.args.cuda:
-                    lab_real_preds = lab_real_preds.to(device)
-                    unlab_real_preds = unlab_real_preds.to(device)
-
-                print(lab_real_preds,unlab_real_preds)
-                # 我加的不然新的torch版本没法运行
-                # lab_real_preds = lab_real_preds.reshape(-1, 1)
-                # lab_real_preds = lab_real_preds.detach()
-                # unlab_real_preds = unlab_real_preds.reshape(-1, 1)
-                # unlab_real_preds = unlab_real_preds.detach()
-
-                dsc_loss = self.bce_loss(labeled_preds, lab_real_preds) + \
-                           self.bce_loss(unlabeled_preds, unlab_real_preds)
-                total_vae_loss = unsup_loss + transductive_loss + self.args.adversary_param * dsc_loss
-                optim_vae.zero_grad()
-                total_vae_loss.backward()
-                optim_vae.step()
-
-                # sample new batch if needed to train the adversarial network
-                if count < (self.args.num_vae_steps - 1):
-                    labeled_imgs, _ = next(labeled_data)
-                    unlabeled_imgs = next(unlabeled_data)
-
-                    if self.args.cuda:
-                        labeled_imgs = labeled_imgs.to(device)
-                        unlabeled_imgs = unlabeled_imgs.to(device)
-                        labels = labels.to(device)
-
-            # Discriminator step
-            for count in range(self.args.num_adv_steps):
-                with torch.no_grad():
-                    _, _, mu, _ = vae(labeled_imgs)
-                    _, _, unlab_mu, _ = vae(unlabeled_imgs)
-
-                labeled_preds = discriminator(mu)
-                unlabeled_preds = discriminator(unlab_mu)
-
-                lab_real_preds = torch.ones(labeled_imgs.size(0))
-                unlab_fake_preds = torch.zeros(unlabeled_imgs.size(0))
-
-                if self.args.cuda:
-                    lab_real_preds = lab_real_preds.to(device)
-                    unlab_fake_preds = unlab_fake_preds.to(device)
-                # lab_real_preds = lab_real_preds.reshape(-1, 1)
-                # lab_real_preds = lab_real_preds.detach()
-                # unlab_fake_preds = unlab_fake_preds.reshape(-1, 1)
-                # unlab_fake_preds = unlab_fake_preds.detach()
-                dsc_loss = self.bce_loss(labeled_preds, lab_real_preds) + \
-                           self.bce_loss(unlabeled_preds, unlab_fake_preds)
-
-                optim_discriminator.zero_grad()
-                dsc_loss.backward()
-                optim_discriminator.step()
-
-                # sample new batch if needed to train the adversarial network
-                if count < (self.args.num_adv_steps - 1):
-                    labeled_imgs, _ = next(labeled_data)
-                    unlabeled_imgs = next(unlabeled_data)
-
-                    if self.args.cuda:
-                        labeled_imgs = labeled_imgs.to(device)
-                        unlabeled_imgs = unlabeled_imgs.to(device)
-                        labels = labels.to(device)
-
-            if iter_count % 100 == 0:
-                print('Current training iteration: {}'.format(iter_count))
-                # print('Current task model loss: {:.4f}'.format(task_loss.item()))
-                print('Current vae model loss: {:.4f}'.format(total_vae_loss.item()))
-                print('Current discriminator model loss: {:.4f}'.format(dsc_loss.item()))
-
-            # if iter_count % 1000 == 0:
-            #     acc = self.validate(task_model, val_dataloader)
-            #     if acc > best_acc:
-            #         best_acc = acc
-            #         best_model = copy.deepcopy(task_model)
-            #
-            #     print('current step: {} acc: {}'.format(iter_count, acc))
-            #     print('best acc: ', best_acc)
-
-        # if self.args.cuda:
-        #     best_model = best_model.to(device)
-        #
-        # final_accuracy = self.test(best_model)
-        return vae, discriminator
-
-    def sample_for_labeling(self, vae, discriminator, unlabeled_dataloader):
-        querry_indices = self.sampler.sample(vae,
-                                             discriminator,
-                                             unlabeled_dataloader,
-                                             self.args.cuda)
-
-        return querry_indices
-
-    def validate(self, task_model, loader):
-        task_model.eval()
-        total, correct = 0, 0
-        for imgs, labels, _ in loader:
-            if self.args.cuda:
-                imgs = imgs.to(device)
-
-            with torch.no_grad():
-                preds = task_model(imgs)
-
-            preds = torch.argmax(preds, dim=1).cpu().numpy()
-            correct += accuracy_score(labels, preds, normalize=False)
-            total += imgs.size(0)
-        return correct / total * 100
-
-    def test(self, task_model):
-        task_model.eval()
-        total, correct = 0, 0
-        for imgs, labels in self.test_dataloader:
-            if self.args.cuda:
-                imgs = imgs.to(device)
-
-            with torch.no_grad():
-                preds = task_model(imgs)
-
-            preds = torch.argmax(preds, dim=1).cpu().numpy()
-            correct += accuracy_score(labels, preds, normalize=False)
-            total += imgs.size(0)
-        return correct / total * 100
-
-    def vae_loss(self, x, recon, mu, logvar, beta):
-        MSE = self.mse_loss(recon, x)
-        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        KLD = KLD * beta
-        return MSE + KLD
-
-
 class VAAL(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
         super(VAAL, self).__init__(X, Y, idxs_lb, net, handler, args)
-
+        global device
+        device = self.device
         if self.args.channels == 3:
             self.vae = VAE(32).to(device)
             self.discriminator = Discriminator(32).to(device)
@@ -467,7 +264,8 @@ class VAAL(Strategy):
         self.bce_loss = nn.BCELoss()
         self.mse_loss = nn.MSELoss()
         self.ce_loss = nn.CrossEntropyLoss()
-        self.cuda = True
+        
+        self.cuda = self.device
         self.num_vae_steps = 2
         self.beta = 1
         self.adversary_param = 1
@@ -616,7 +414,7 @@ class VAAL(Strategy):
                 # print('Current task model loss: {:.4f}'.format(task_loss.item()))
                 print('Current vae model loss: {:.4f}'.format(total_vae_loss.item()))
                 print('Current discriminator model loss: {:.4f}'.format(dsc_loss.item()))
-        return accFinal / len(loader_tr.dataset.X)
+        return accFinal / len(loader_tr.dataset.X), total_vae_loss.item() + dsc_loss.item()
 
     def train(self, alpha=0, n_epoch=80):
 
@@ -652,14 +450,14 @@ class VAAL(Strategy):
         accCurrent = 0.
         accOld = 0.
         while epoch < n_epoch:
-            accCurrent = self.vaal_train(epoch, loader_tr, optimizer, labeled_data, unlabeled_data, optim_vae, optim_discriminator)
+            accCurrent,train_loss = self.vaal_train(epoch, loader_tr, optimizer, labeled_data, unlabeled_data, optim_vae, optim_discriminator)
             epoch += 1
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
             #
-            if abs(accCurrent-accOld) < 0.001:  # reset if not converging
+            if abs(train_loss-lossOld) < 0.001:  # reset if not converging
                 break
             else: 
-                accOld = accCurrent
+                lossOld = train_loss
 
 
     def query(self, n):
