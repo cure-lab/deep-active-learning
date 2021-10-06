@@ -223,6 +223,7 @@ class LearningLoss(Strategy):
     def query(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         # idxs_unlabeled = idxs_unlabeled[:int(len(idxs_unlabeled)/5)]
+        np.random.shuffle(idxs_unlabeled)
         idxs_unlabeled = idxs_unlabeled[:min(10000,len(idxs_unlabeled))]
         unlabeled_loader = DataLoader(
             self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
