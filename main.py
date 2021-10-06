@@ -96,6 +96,14 @@ parser.add_argument('--pretrained',
 
 ##########################################################################
 args = parser.parse_args()
+if args.manualSeed is None:
+    args.manualSeed = random.randint(0, 10000)
+random.seed(args.manualSeed)
+torch.manual_seed(args.manualSeed)
+np.random.seed(args.manualSeed)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if device == 'cuda':
+    torch.cuda.manual_seed(args.manualSeed)
 
 
 # specify the hyperparameters
@@ -178,9 +186,7 @@ def main():
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path)
     
-    if args.manualSeed is None:
-        args.manualSeed = random.randint(0, 1000)
-    
+
     log = os.path.join(args.save_path,
                         'log_seed_{}.txt'.format(args.manualSeed))
 

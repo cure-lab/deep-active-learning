@@ -30,15 +30,15 @@ n_epoch=50
 # dataset=cifar10
 # model=ResNet18
 # start=10
-# end=40
+# end=70
 # step=5
 # n_epoch=200
 
 # dataset=gtsrb
 
 strategies=(
-            # 'RandomSampling' \
-            # 'CoreSet' \
+            'RandomSampling' \
+            'CoreSet' \
             # 'BadgeSampling' \
             # 'BALDDropout' \
             # 'LeastConfidence' \
@@ -46,7 +46,7 @@ strategies=(
             # 'KMeansSampling' \
             # 'AdversarialBIM' \
             # 'WAAL' \
-            'ActiveLearningByLearning' \
+            # 'ActiveLearningByLearning' \
             # 'VAAL' \
             # 'LearningLoss' \
             # 'ClusterMarginSampling' \
