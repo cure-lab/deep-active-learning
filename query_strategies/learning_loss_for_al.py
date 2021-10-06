@@ -52,6 +52,15 @@ EPOCHL = 120 # After 120 epochs, stop the gradient from the loss prediction modu
 
 MOMENTUM = 0.9
 WDECAY = 5e-4
+device_global = 'cuda'
+
+class Reshape(nn.Module):
+    def __init__(self):
+        super(Reshape, self).__init__()
+
+
+    def forward(self, x):
+        return x.view(x.size(0), -1)
 
 # 硬改成根据输入层数设计lossnet
 class LossNet(nn.Module):
@@ -63,26 +72,26 @@ class LossNet(nn.Module):
         feature_sizes = [2**(num+2) for num in range(num_layers)]
         feature_sizes.reverse()
         num_channels= [16 * (2**num) for num in range(num_layers)]
+        
         self.GAP_list = []
         self.FC_list = []
         for num in range(num_layers):
-            self.GAP_list.append(nn.AvgPool2d(feature_sizes[num]).cuda())
-            self.FC_list.append(nn.Linear(num_channels[num], interm_dim).cuda())
+            self.GAP_list.append(nn.AvgPool2d(feature_sizes[num]).to(device_global) )
+            self.FC_list.append(nn.Linear(num_channels[num], interm_dim).to(device_global))
 
         self.linear = nn.Linear(feature_sizes[-1] * interm_dim, 1)
 
+
     def forward(self, features):
         out_list = []
-        # for feature in features:
-        #     print(len(features))
-        #     print(feature.shape)     
+
         for num in range(self.num_layers):
-            
             out = self.GAP_list[num](features[num])
             out = out.view(out.size(0), -1)
             out = self.FC_list[num](out)
             out = F.relu(out)
             out_list.append(out)
+
         out = self.linear(torch.cat(out_list, 1))
         return out
 
@@ -112,15 +121,17 @@ def LossPredLoss(input, target, margin=1.0, reduction='mean'):
 class LearningLoss(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
         super(LearningLoss, self).__init__(X, Y, idxs_lb, net, handler, args)
-        self.loss_module = LossNet().cuda()
-
+        global device_global
+        device_global = self.device
+        
+        
 
     def ll_train(self, epoch, loader_tr, optimizers,criterion):
         self.clf.train()
         self.loss_module.train()
         accFinal = 0.
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
-            x, y = Variable(x.cuda()), Variable(y.cuda())
+            x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
             scores, e1, features = self.clf(x,intermediate = True)
             target_loss = criterion(scores, y)
             if epoch > 120:
@@ -152,23 +163,33 @@ class LearningLoss(Strategy):
         def weight_reset(m):
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 m.reset_parameters()
-        transform = self.args.transform_tr if not self.pretrained else None
-        # n_epoch = self.args.n_epoch']
-        self.clf = self.net.apply(weight_reset).cuda()
-        criterion = nn.CrossEntropyLoss(reduction='none')
-        optim_backbone = optim.SGD(self.clf.parameters(), lr=LR,
-                                   momentum=MOMENTUM, weight_decay=WDECAY)
-        optim_module = optim.SGD(self.loss_module.parameters(), lr=LR,
-                                 momentum=MOMENTUM, weight_decay=WDECAY)
-        sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
-        sched_module = lr_scheduler.MultiStepLR(optim_module, milestones=MILESTONES)
 
-        optimizers = {'backbone': optim_backbone, 'module': optim_module}
-        schedulers = {'backbone': sched_backbone, 'module': sched_module}
+        transform = self.args.transform_tr if not self.pretrained else None
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
                                             transform=transform), shuffle=True,
                                **self.args.loader_tr_args)
+
+        # n_epoch = self.args.n_epoch']
+        self.clf = self.net.apply(weight_reset).to(self.device) 
+        criterion = nn.CrossEntropyLoss(reduction='none')
+        optim_backbone = optim.SGD(self.clf.parameters(), lr=LR,
+                                   momentum=MOMENTUM, weight_decay=WDECAY)
+        sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
+
+        for batch_idx, (x, y, idxs) in enumerate(loader_tr):
+            x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
+            scores, e1, features = self.clf(x,intermediate = True)
+            break
+        self.loss_module = LossNet(len(features)).to(self.device) 
+        optim_module = optim.SGD(self.loss_module.parameters(), lr=LR,
+                                 momentum=MOMENTUM, weight_decay=WDECAY)
+        sched_module = lr_scheduler.MultiStepLR(optim_module, milestones=MILESTONES)
+
+        optimizers = {'backbone': optim_backbone, 'module': optim_module}
+        schedulers = {'backbone': sched_backbone, 'module': sched_module}
+        
+        
 
         epoch = 1
         accCurrent = 0.
@@ -185,12 +206,12 @@ class LearningLoss(Strategy):
     def get_uncertainty(self,models, unlabeled_loader):
         models['backbone'].eval()
         models['module'].eval()
-        uncertainty = torch.tensor([]).cuda()
+        uncertainty = torch.tensor([]).to(self.device) 
 
         with torch.no_grad():
             for (inputs, labels,idx) in unlabeled_loader:
-                inputs = inputs.cuda()
-                # labels = labels.cuda()
+                inputs = inputs.to(self.device) 
+                # labels = labels.to(self.device) 
                 scores, e1, features = models['backbone'](inputs,intermediate = True)
                 pred_loss = models['module'](features)  # pred_loss = criterion(scores, labels) # ground truth loss
                 pred_loss = pred_loss.view(pred_loss.size(0))
@@ -201,6 +222,9 @@ class LearningLoss(Strategy):
 
     def query(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
+        # idxs_unlabeled = idxs_unlabeled[:int(len(idxs_unlabeled)/5)]
+        np.random.shuffle(idxs_unlabeled)
+        idxs_unlabeled = idxs_unlabeled[:min(10000,len(idxs_unlabeled))]
         unlabeled_loader = DataLoader(
             self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
                          transform=self.args.transform_te), shuffle=True,
