@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch
 from torch.autograd import Variable
-from sklearn.cluster import Kmeans
+from sklearn.cluster import KMeans
 
 class TransformTwice:
     def __init__(self, transform1,transform2):
@@ -60,7 +60,7 @@ class ssl_Diff2AugKmeans(semi_Strategy):
 
     def query(self, k):
         self.emb_list = self.prepare_emb()
-        self.Kmeans_list = Kmeans(n_clusters=20).fit(self.emb_list)
+        self.Kmeans_list = KMeans(n_clusters=20).fit(self.emb_list)
         margin_sorted_index = self.margin_data()
         index = self.diff2_aug_kmeans(margin_sorted_index, self.Kmeans_list.labels_, k)
 
