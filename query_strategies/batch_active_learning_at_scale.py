@@ -4,10 +4,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch
 from torch.autograd import Variable
-from tqdm import tqdm
 from sklearn.cluster import AgglomerativeClustering
 distance_threshold = 8
-# 10000 - 20000 0.4394 0.4438
+
 class Cluster():
     def __init__(self, init_points, cluster_id):
         self.points = init_points
@@ -54,16 +53,12 @@ def HAC(points_set):
         cluster_list.append(Cluster([point,], idex))
     update_flag = True
     round = 0
-    # for point_1 in tqdm(points_set):
-    #         for idx, point_2 in enumerate(points_set):
-    #             if idx % 1000 == 0:
-    #                 print(idx)
-    #             distance(point_1,point_2)
+
     while(update_flag) and len(cluster_list) > 5000:
         new_cluster_list = []
         round += 1
         print("HAC round ", round, "Length ",len(cluster_list))
-        for index_1, cluster_1 in tqdm(enumerate(cluster_list)):
+        for index_1, cluster_1 in enumerate(cluster_list):
             for index_2, cluster_2 in enumerate(cluster_list):
                 if index_2 <= index_1:
                     continue
@@ -92,10 +87,6 @@ def HAC(points_set):
         cluster_dict = cluster.inverse(cluster_dict)
         # print(cluster.points)
     return cluster_dict
-    
-# pt = [[1,2,3,4],[2,3,4,5],[4,5,6,7],[5,6,7,8]]
-# pt = [np.array(i) for i in pt]
-# print(HAC(pt))
 
 class ClusterMarginSampling(Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
@@ -118,12 +109,14 @@ class ClusterMarginSampling(Strategy):
 
     def margin_data(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
+        # 仅获得未标注数据 prob
         probs = self.predict_prob(self.X[idxs_unlabeled], self.Y.numpy()[idxs_unlabeled])
-        emb_list = self.emb_list
         probs_sorted, idxs = probs.sort(descending=True)
         U = probs_sorted[:, 0] - probs_sorted[:,1]
-        emb_select_list = emb_list[idxs_unlabeled[U.sort()[1].numpy()[:n]]]
-        return idxs_unlabeled[U.sort()[1].numpy()[:n]], emb_select_list
+        # emb_list = self.emb_list
+        # emb_select_list = emb_list[idxs_unlabeled[U.sort()[1].numpy()[:n]]]
+        # sort函数默认 dim = -1， [1] 表示的是 index
+        return idxs_unlabeled[U.sort()[1].numpy()[:n]]
 
     def query(self, k):
         if self.one_sample_step:
@@ -132,28 +125,29 @@ class ClusterMarginSampling(Strategy):
             # print(self.emb_list[0])
             # self.HAC_dict = HAC(self.emb_list)
             # self.HAC_list = AgglomerativeClustering(n_clusters=None,distance_threshold = distance_threshold,linkage = 'average').fit(self.emb_list)
+            # 全部数据 建立 cluster
             self.HAC_list = AgglomerativeClustering(n_clusters=20, linkage = 'average').fit(self.emb_list)
 
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         n = min(k*10,len(self.Y[idxs_unlabeled]))
-        index, emb_select = self.margin_data(n)
-        index = self.round_robin(index, emb_select, self.HAC_list.labels_, k)
-        print(len(index),len([i for i in index if i in idxs_unlabeled]))
+        index = self.margin_data(n)
+        index = self.round_robin(index, self.HAC_list.labels_, k)
+        # print(len(index),len([i for i in index if i in idxs_unlabeled]))
         return index
 
-    def round_robin(self, data, emb_select, hac_list, k):
+    def round_robin(self, unlabeled_index, hac_list, k):
         cluster_list = []
-        print("Round Robin")
+        # print("Round Robin")
         for i in range(len(self.Y)):
             cluster = []
             cluster_list.append(cluster)
-        for idx,emb in enumerate(emb_select):
-            i = hac_list[idx]
-            cluster_list[i].append(data[idx])
+        for real_idx in unlabeled_index:
+            i = hac_list[real_idx]
+            cluster_list[i].append(real_idx)
         cluster_list.sort(key=lambda x:len(x))
         index_select = []
         cluster_index = 0
-        print("Select cluster",len(set(hac_list)))
+        # print("Select cluster",len(set(hac_list)))
         while k > 0:
             if len(cluster_list[cluster_index]) > 0:
                 index_select.append(cluster_list[cluster_index].pop(0)) 
