@@ -15,9 +15,9 @@ class TransformTwice:
         out2 = self.transform2(inp)
         return out1, out2
 
-class ssl_Diff2AugKmeans(semi_Strategy):
+class ssl_Diff2AugDirect(semi_Strategy):
     def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(ssl_Diff2AugKmeans, self).__init__(X, Y, idxs_lb, net, handler, args)
+        super(ssl_Diff2AugDirect, self).__init__(X, Y, idxs_lb, net, handler, args)
 
     def predict_prob_aug(self, X, Y):
         
@@ -26,7 +26,7 @@ class ssl_Diff2AugKmeans(semi_Strategy):
         if not self.pretrained:
             self.ema_model.eval()
 
-        probs = torch.zeros([len(Y), len(np.unique(self.Y))])
+        probs = torch.zeros([len(Y), len(np.unique(self.Y))]).to(self.device)
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x1, x2, y = x[0].to(self.device), x[1].to(self.device), y.to(self.device)
@@ -34,7 +34,7 @@ class ssl_Diff2AugKmeans(semi_Strategy):
                 out2, e1 = self.ema_model(x2)
                 probs[idxs] = (torch.softmax(out1, dim=1) + torch.softmax(out2, dim=1)) / 2
         
-        return probs
+        return probs.cpu()
 
     def margin_data(self,k):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
