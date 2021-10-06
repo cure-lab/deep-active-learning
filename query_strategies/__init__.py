@@ -22,3 +22,7 @@ from .batch_active_learning_at_scale import ClusterMarginSampling
 from .ensemble import Ensemble
 from .uncertainGCN import uncertainGCN
 from .coreGCN import coreGCN
+from .ssl_lc import ssl_LC
+from .ssl_rand import ssl_Random
+from .ssl_diff2augkmeans import ssl_Diff2AugKmeans
+from .ssl_diff2augdirect import ssl_Diff2AugDirect
