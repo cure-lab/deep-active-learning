@@ -41,7 +41,7 @@ class ssl_Diff2AugKmeans(semi_Strategy):
         if not self.pretrained:
             self.ema_model.eval()
 
-        probs = torch.zeros([len(Y), len(np.unique(self.Y))])
+        probs = torch.zeros([len(Y), len(np.unique(self.Y))]).to(self.device)
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x1, x2, y = x[0].to(self.device), x[1].to(self.device), y.to(self.device)
@@ -49,7 +49,7 @@ class ssl_Diff2AugKmeans(semi_Strategy):
                 out2, e1 = self.ema_model(x2)
                 probs[idxs] = (torch.softmax(out1, dim=1) + torch.softmax(out2, dim=1)) / 2
         
-        return probs
+        return probs.cpu()
 
     def margin_data(self):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
@@ -68,7 +68,7 @@ class ssl_Diff2AugKmeans(semi_Strategy):
 
     def diff2_aug_kmeans(self, unlabeled_index, Kmeans_list, k):
         cluster_list = []
-        for i in range(len(20)):
+        for i in range(20):
             cluster = []
             cluster_list.append(cluster)
 
