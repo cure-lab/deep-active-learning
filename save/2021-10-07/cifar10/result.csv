@@ -50,3 +50,5 @@ KMeansSampling,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,50.0,accCompare,0.73
 BALDDropout,1,budget,70.0,nStart,10.0,nQuery,5.0,labeled,45.0,accCompare,0.7196,0.8794,0.15979999999999994,timePerIter,73.54826140403748
 BALDDropout,1,budget,70.0,nStart,10.0,nQuery,5.0,labeled,50.0,accCompare,0.7196,0.89,0.1704,timePerIter,68.76896333694458
 KMeansSampling,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,55.0,accCompare,0.7397,0.8808,0.1411,timePerIter,640.2901270389557
+BALDDropout,1,budget,70.0,nStart,10.0,nQuery,5.0,labeled,55.0,accCompare,0.7196,0.887,0.1674,timePerIter,62.39671969413757
+KMeansSampling,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,60.0,accCompare,0.7397,0.8838,0.1441,timePerIter,532.356805562973

@@ -30,7 +30,7 @@ n_epoch=50
 # dataset=cifar10
 # model=ResNet18
 # start=10
-# end=70
+# end=40
 # step=5
 # n_epoch=200
 
@@ -54,6 +54,8 @@ strategies=(
             # 'coreGCN' \
             # 'LAL' \
             # 'MultiCritera' \
+            # Emsemble \
+
             )
             
 save_path=save/${DATE}/${dataset}

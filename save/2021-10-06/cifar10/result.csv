@@ -81,3 +81,5 @@ BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,50.0,accCompare,0.7223,
 BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,55.0,accCompare,0.7223,0.8939,0.17159999999999997,timePerIter,77.03496479988098
 BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,60.0,accCompare,0.7223,0.8932,0.17089999999999994,timePerIter,69.79091119766235
 BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,65.0,accCompare,0.7223,0.9004,0.17809999999999993,timePerIter,63.253838300704956
+BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,70.0,accCompare,0.7223,0.9006,0.1782999999999999,timePerIter,54.556180000305176
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,15.0,accCompare,0.7227,0.8005,0.07779999999999998,timePerIter,136.01777696609497

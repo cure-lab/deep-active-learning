@@ -24,14 +24,13 @@ import query_strategies
 import mymodels
 from utils import print_log
 
-# code based on https://github.com/ej0cl6/deep-active-learning"
 
 
 query_strategies_name = sorted(name for name in query_strategies.__dict__
                      if callable(query_strategies.__dict__[name]))
 model_name = sorted(name for name in mymodels.__dict__)
 
-###############################################################################
+# code based on https://github.com/ej0cl6/deep-active-learning"
 parser = argparse.ArgumentParser()
 # strategy
 parser.add_argument('--strategy', help='acquisition algorithm', type=str, choices=query_strategies_name, 
@@ -97,14 +96,6 @@ parser.add_argument('--pretrained',
 
 ##########################################################################
 args = parser.parse_args()
-if args.manualSeed is None:
-    args.manualSeed = random.randint(0, 10000)
-random.seed(args.manualSeed)
-torch.manual_seed(args.manualSeed)
-np.random.seed(args.manualSeed)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if device == 'cuda':
-    torch.cuda.manual_seed(args.manualSeed)
 
 
 # specify the hyperparameters
@@ -187,7 +178,9 @@ def main():
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path)
     
-
+    if args.manualSeed is None:
+        args.manualSeed = random.randint(0, 1000)
+    
     log = os.path.join(args.save_path,
                         'log_seed_{}.txt'.format(args.manualSeed))
 
@@ -247,8 +240,6 @@ def main():
     bayesian = True if 'Dropout' in args.strategy else False
     if args.strategy == 'ensemble':
         net = [mymodels.__dict__[args.model](n_class=args.n_class) for _ in range(args.n_ensembles)]
-    elif 'ssl_' in args.strategy:
-        net = [mymodels.__dict__[args.model](n_class=args.n_class, bayesian=bayesian) for _ in range(2)]
     else:
         net = mymodels.__dict__[args.model](n_class=args.n_class, bayesian=bayesian)
 
@@ -297,6 +288,7 @@ def main():
         # update
         strategy.update(idxs_lb)
         strategy.train(alpha=alpha, n_epoch=args.n_epoch)
+        t_iter = time.time() - ts
 
         # round accuracy
         test_acc = strategy.predict(X_te, Y_te)
@@ -321,8 +313,10 @@ def main():
                             acc[0],
                             acc[rd],
                             acc[rd] - acc[0],
-                            'timePerIter',
-                            tp
+                            't_query',
+                            tp, 
+                            't_iter',
+                            t_iter
                             ])
         
         if sum(~strategy.idxs_lb) <int(args.nQuery*n_pool/100): 

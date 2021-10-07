@@ -408,11 +408,13 @@ class VAAL(Strategy):
                         labeled_imgs = labeled_imgs.to(device)
                         unlabeled_imgs = unlabeled_imgs.to(device)
                         labels = labels.to(device)
-                        
+
+            if batch_idx % 100 == 0:
+                print('Current training iteration: {}'.format(batch_idx))
+                # print('Current task model loss: {:.4f}'.format(task_loss.item()))
                 print('Current vae model loss: {:.4f}'.format(total_vae_loss.item()))
                 print('Current discriminator model loss: {:.4f}'.format(dsc_loss.item()))
-
-        return accFinal / len(loader_tr.dataset.X), total_vae_loss.item() + dsc_loss.item() + loss.item()
+        return accFinal / len(loader_tr.dataset.X), total_vae_loss.item() + dsc_loss.item()
 
     def train(self, alpha=0, n_epoch=80):
 

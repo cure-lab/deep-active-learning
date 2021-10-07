@@ -1,0 +1,8 @@
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,4.0,accCompare,0.901,0.8951,-0.005900000000000016,timePerIter,35.22039008140564
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,6.0,accCompare,0.901,0.9441,0.04310000000000003,timePerIter,34.64467716217041
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,8.0,accCompare,0.901,0.9435,0.04249999999999998,timePerIter,31.55013608932495
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,10.0,accCompare,0.901,0.9513,0.05030000000000001,timePerIter,30.28772211074829
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,12.0,accCompare,0.901,0.9018,0.0008000000000000229,timePerIter,31.393714904785156
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,14.0,accCompare,0.901,0.8184,-0.0826,timePerIter,31.891279220581055
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,16.0,accCompare,0.901,0.9562,0.05520000000000003,timePerIter,29.25985622406006
+VAAL,1,budget,20.0,nStart,2.0,nQuery,2.0,labeled,18.0,accCompare,0.901,0.8463,-0.05469999999999997,timePerIter,29.53405261039734
