@@ -86,7 +86,7 @@ class resnet_fea(nn.Module):
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
-    def forward(self, x, intermediate=False):
+    def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out1 = self.layer1(out)
         out2 = self.layer2(out1)
@@ -103,7 +103,6 @@ class resnet_clf(nn.Module):
         self.linear = nn.Linear(128 * block.expansion, n_class)
 
     def forward(self, x):
-        # emb = x.view(x.size(0), -1)
         out = self.linear(x)
         return out, x
 

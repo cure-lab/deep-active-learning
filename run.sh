@@ -37,8 +37,8 @@ n_epoch=50
 # dataset=gtsrb
 
 strategies=(
-            'RandomSampling' \
-            'CoreSet' \
+            # 'RandomSampling' \
+            # 'CoreSet' \
             # 'BadgeSampling' \
             # 'BALDDropout' \
             # 'LeastConfidence' \
@@ -47,9 +47,9 @@ strategies=(
             # 'AdversarialBIM' \
             # 'WAAL' \
             # 'ActiveLearningByLearning' \
-            # 'VAAL' \
-            # 'LearningLoss' \
-            # 'ClusterMarginSampling' \
+            'VAAL' \
+            'LearningLoss' \
+            'ClusterMarginSampling' \
             # 'uncertainGCN' \
             # 'coreGCN' \
             # 'LAL' \

@@ -27,6 +27,7 @@ class Strategy:
             self.preprocessing = args.preprocessing
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.clf = net.to(self.device)
+        self.net = net.to(self.device)
 
         if self.pretrained: # use the latent vector of the inputs as training data
             self.X_p = self.get_pretrained_embedding(X, Y)

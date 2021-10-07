@@ -3,3 +3,6 @@ from .resnet import ResNet18
 from .wa_model import get_wa_net
 from .lossnet import LossNet
 from .linear import LeNet
+from .mobilenet import MobileNet
+from .shufflenet import ShuffleNet
+from .wideresnet import WideResNet

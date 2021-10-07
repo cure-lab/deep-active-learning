@@ -24,13 +24,14 @@ import query_strategies
 import mymodels
 from utils import print_log
 
+# code based on https://github.com/ej0cl6/deep-active-learning"
 
 
 query_strategies_name = sorted(name for name in query_strategies.__dict__
                      if callable(query_strategies.__dict__[name]))
 model_name = sorted(name for name in mymodels.__dict__)
 
-# code based on https://github.com/ej0cl6/deep-active-learning"
+###############################################################################
 parser = argparse.ArgumentParser()
 # strategy
 parser.add_argument('--strategy', help='acquisition algorithm', type=str, choices=query_strategies_name, 

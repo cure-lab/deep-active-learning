@@ -102,11 +102,15 @@ class LeNet(nn.Module):
         self.discriminator = Net1_dis()
         self.bayesian = bayesian
     
-    def forward(self, x):
-        x, _ = self.feature_extractor(x)
+    def forward(self, x, intermediate=False):
+        x, in_values = self.feature_extractor(x)
         x = F.dropout(x, p=0.2, training=self.bayesian)
         x, e1 = self.linear(x)
-        return x, e1
+        
+        if intermediate == True:
+            return x, e1, in_values
+        else:
+            return x, e1
 
     def get_embedding_dim(self):
         return 50
