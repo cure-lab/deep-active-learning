@@ -37,8 +37,8 @@ We've been running our code in Python 3.7.
 
 # Running an experiment
 
-`python main.py --model resnet --nQuery 5 --dataset cifar10 --strategy badge`\
-runs an active learning experiment using a ResNet and CIFAR-10 data, querying batches of 1,000 samples according to the BADGE algorithm.
+`python main.py --model ResNet18  --dataset cifar10 --strategy LeastConfidence`\
+runs an active learning experiment using ResNet18 and CIFAR-10 data, querying according to the LeastConfidence algorithm.
 
 <!-- `python main.py --model mlp --nQuery 5 --did 6 --strategy conf`\
 runs an active learning experiment using an MLP and dataset number 6 from OpenML, querying batches of 10,000 with confidence sampling.
