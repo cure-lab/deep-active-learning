@@ -116,3 +116,27 @@ def max_columns(df0, cols=''):
     if cols!='':
         max_df.columns = cols
     return max_df
+
+
+def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    "Add by YU"
+    lr = args.lr
+    mu = args.momentum
+
+    if args.optimizer != "YF":
+        assert len(gammas) == len(
+            schedule), "length of gammas and schedule should be equal"
+        for (gamma, step) in zip(gammas, schedule):
+            if (epoch >= step):
+                lr = lr * gamma
+            else:
+                break
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+
+    elif args.optimizer == "YF":
+        lr = optimizer._lr
+        mu = optimizer._mu
+
+    return lr, mu

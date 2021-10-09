@@ -24,13 +24,14 @@ import query_strategies
 import mymodels
 from utils import print_log
 
+# code based on https://github.com/ej0cl6/deep-active-learning"
 
 
 query_strategies_name = sorted(name for name in query_strategies.__dict__
                      if callable(query_strategies.__dict__[name]))
 model_name = sorted(name for name in mymodels.__dict__)
 
-# code based on https://github.com/ej0cl6/deep-active-learning"
+###############################################################################
 parser = argparse.ArgumentParser()
 # strategy
 parser.add_argument('--strategy', help='acquisition algorithm', type=str, choices=query_strategies_name, 
@@ -96,6 +97,14 @@ parser.add_argument('--pretrained',
 
 ##########################################################################
 args = parser.parse_args()
+if args.manualSeed is None:
+    args.manualSeed = random.randint(0, 10000)
+random.seed(args.manualSeed)
+torch.manual_seed(args.manualSeed)
+np.random.seed(args.manualSeed)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if device == 'cuda':
+    torch.cuda.manual_seed(args.manualSeed)
 
 
 # specify the hyperparameters
@@ -109,8 +118,8 @@ args_pool = {'mnist':
                                 transforms.Normalize((0.1307,), (0.3081,))]),
                  'transform_te': transforms.Compose([transforms.ToTensor(), 
                                 transforms.Normalize((0.1307,), (0.3081,))]),
-                 'loader_tr_args':{'batch_size': 512, 'num_workers': 1},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 1},
+                 'loader_tr_args':{'batch_size': 1024, 'num_workers': 8},
+                 'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
                 },
             'fashionmnist':
                 {
@@ -178,9 +187,7 @@ def main():
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path)
     
-    if args.manualSeed is None:
-        args.manualSeed = random.randint(0, 1000)
-    
+
     log = os.path.join(args.save_path,
                         'log_seed_{}.txt'.format(args.manualSeed))
 
@@ -288,8 +295,9 @@ def main():
         # update
         strategy.update(idxs_lb)
         strategy.train(alpha=alpha, n_epoch=args.n_epoch)
-        t_iter = time.time() - ts
 
+        t_iter = time.time() - ts
+        
         # round accuracy
         test_acc = strategy.predict(X_te, Y_te)
         acc[rd] = test_acc
@@ -314,7 +322,7 @@ def main():
                             acc[rd],
                             acc[rd] - acc[0],
                             't_query',
-                            tp, 
+                            tp,
                             't_iter',
                             t_iter
                             ])

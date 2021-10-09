@@ -30,7 +30,7 @@ n_epoch=50
 # dataset=cifar10
 # model=ResNet18
 # start=10
-# end=40
+# end=70
 # step=5
 # n_epoch=200
 
@@ -47,15 +47,13 @@ strategies=(
             # 'AdversarialBIM' \
             # 'WAAL' \
             # 'ActiveLearningByLearning' \
-            'VAAL' \
+            # 'VAAL' \
             'LearningLoss' \
-            'ClusterMarginSampling' \
+            # 'ClusterMarginSampling' \
             # 'uncertainGCN' \
             # 'coreGCN' \
             # 'LAL' \
             # 'MultiCritera' \
-            # Emsemble \
-
             )
             
 save_path=save/${DATE}/${dataset}

@@ -83,3 +83,11 @@ BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,60.0,accCompare,0.7223,
 BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,65.0,accCompare,0.7223,0.9004,0.17809999999999993,timePerIter,63.253838300704956
 BALDDropout,2,budget,70.0,nStart,10.0,nQuery,5.0,labeled,70.0,accCompare,0.7223,0.9006,0.1782999999999999,timePerIter,54.556180000305176
 BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,15.0,accCompare,0.7227,0.8005,0.07779999999999998,timePerIter,136.01777696609497
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,20.0,accCompare,0.7227,0.823,0.10029999999999994,timePerIter,129.49708652496338
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,25.0,accCompare,0.7227,0.837,0.11429999999999996,timePerIter,121.80788969993591
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,30.0,accCompare,0.7227,0.8514,0.12870000000000004,timePerIter,113.79511737823486
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,35.0,accCompare,0.7227,0.8651,0.14239999999999997,timePerIter,107.49585390090942
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,40.0,accCompare,0.7227,0.8697,0.14700000000000002,timePerIter,99.01476883888245
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,45.0,accCompare,0.7227,0.8832,0.16049999999999998,timePerIter,91.72276091575623
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,50.0,accCompare,0.7227,0.8879,0.1652,timePerIter,84.66188073158264
+BALDDropout,3,budget,70.0,nStart,10.0,nQuery,5.0,labeled,55.0,accCompare,0.7227,0.8894,0.16669999999999996,timePerIter,77.53048515319824

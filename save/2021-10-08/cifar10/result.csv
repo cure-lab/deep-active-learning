@@ -1,0 +1,3 @@
+CoreSet,1,budget,70.0,nStart,10.0,nQuery,5.0,labeled,15.0,accCompare,0.7139,0.7943,0.08040000000000003,timePerIter,460.32387804985046
+CoreSet,1,budget,70.0,nStart,10.0,nQuery,5.0,labeled,20.0,accCompare,0.7139,0.8244,0.11050000000000004,timePerIter,447.98678398132324
+CoreSet,1,budget,70.0,nStart,10.0,nQuery,5.0,labeled,25.0,accCompare,0.7139,0.8376,0.12370000000000003,timePerIter,751.7850725650787

@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from copy import deepcopy
-from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time
+from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time, adjust_learning_rate
 import time
 
 torch.backends.cudnn.benchmark = True
@@ -108,7 +108,7 @@ class Strategy:
                 
                 # Display simulation time
                 need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (n_epoch - epoch))
-                need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(need_hour, need_mins, need_secs)
+                need_time = '[{} Need: {:02d}:{:02d}:{:02d}]'.format(self.args.strategy, need_hour, need_mins, need_secs)
                 
                 # train one epoch
                 train_acc, train_los = self._train(epoch, loader_tr, optimizer)
@@ -295,26 +295,4 @@ class Strategy:
             return torch.Tensor(embedding)
 
 
-def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    "Add by YU"
-    lr = args.lr
-    mu = args.momentum
-
-    if args.optimizer != "YF":
-        assert len(gammas) == len(
-            schedule), "length of gammas and schedule should be equal"
-        for (gamma, step) in zip(gammas, schedule):
-            if (epoch >= step):
-                lr = lr * gamma
-            else:
-                break
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-
-    elif args.optimizer == "YF":
-        lr = optimizer._lr
-        mu = optimizer._mu
-
-    return lr, mu
 
