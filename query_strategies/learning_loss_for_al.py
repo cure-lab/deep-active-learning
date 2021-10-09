@@ -64,18 +64,21 @@ class Reshape(nn.Module):
 
 # 硬改成根据输入层数设计lossnet
 class LossNet(nn.Module):
-    def __init__(self, num_layers = 4):
+    def __init__(self, features):
         # feature_sizes=[32, 16, 8, 4], num_channels=[16, 32, 64, 128]
         super(LossNet, self).__init__()
-        self.num_layers = num_layers
+        self.num_layers = len(features)
+
         interm_dim = 128
-        feature_sizes = [2**(num+2) for num in range(num_layers)]
-        feature_sizes.reverse()
-        num_channels= [16 * (2**num) for num in range(num_layers)]
+        feature_sizes = []
+        num_channels = []
+        for f in features:
+            num_channels.append(f.size(1))
+            feature_sizes.append(f.size(2))
         
         self.GAP_list = []
         self.FC_list = []
-        for num in range(num_layers):
+        for num in range(self.num_layers):
             self.GAP_list.append(nn.AvgPool2d(feature_sizes[num]).to(device_global) )
             self.FC_list.append(nn.Linear(num_channels[num], interm_dim).to(device_global))
 
@@ -181,7 +184,7 @@ class LearningLoss(Strategy):
             x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
             scores, e1, features = self.clf(x,intermediate = True)
             break
-        self.loss_module = LossNet(len(features)).to(self.device) 
+        self.loss_module = LossNet(features).to(self.device) 
         optim_module = optim.SGD(self.loss_module.parameters(), lr=LR,
                                  momentum=MOMENTUM, weight_decay=WDECAY)
         sched_module = lr_scheduler.MultiStepLR(optim_module, milestones=MILESTONES)
