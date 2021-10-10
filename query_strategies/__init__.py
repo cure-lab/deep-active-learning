@@ -29,4 +29,4 @@ from .ssl_lc import ssl_LC
 from .ssl_rand import ssl_Random
 from .ssl_diff2augkmeans import ssl_Diff2AugKmeans
 from .ssl_diff2augdirect import ssl_Diff2AugDirect
-from .uda import ssl_UDA
+# from .uda import ssl_UDA
