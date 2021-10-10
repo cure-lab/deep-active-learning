@@ -20,7 +20,7 @@ class MCADL(Strategy):
         self.last_acc = [0.0]*self.args.n_class
         self.similarity = pairwise.cosine_similarity(X.reshape([len(X), -1]), X.reshape([len(X), -1]))
 
-    def uncertainty(proba, flag):
+    def uncertainty(self, proba, flag):
         '''
         Input:
         @proba: probability for all samples, n_sample x nb_class
@@ -65,7 +65,7 @@ class MCADL(Strategy):
         return Acc
 
 
-    def getID(pred_label, listID):
+    def getID(self, pred_label, listID):
         '''
         Input:
         @pred: the predicted label for the unlabeled samples
@@ -157,11 +157,11 @@ class MCADL(Strategy):
         self.last_acc = class_accs
 
         # calculate alpha and beta
-        AR_t = self.predict(self.X[self.idxs_lb], self.Y[self.idx_lb]) # average acc on training data
+        AR_t = self.predict(self.X[self.idxs_lb], self.Y[self.idxs_lb]) # average acc on training data
         alpha = self.alpha_init * np.exp(-AR_t)
         beta = self.beta_init * np.exp(-AR_t)
 
-        proba = self.predict_prob(self.X[~self.idxs_lb], self.Y[~self.idx_lb])
+        proba = self.predict_prob(self.X[~self.idxs_lb], self.Y[~self.idxs_lb])
         
         idxs_unlabeled = list(np.nonzero(~self.idxs_lb)[0])
         idxs_labeled = list(np.nonzero(self.idxs_lb)[0])

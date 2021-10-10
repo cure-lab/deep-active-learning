@@ -31,6 +31,8 @@ We've been running our code in Python 3.7.
 |               Entropy Sampling [12]               |  IJCNN'14  |  ✅ |
 |               UncertainGCN Sampling [13]          |  CVPR'21  |  ✅ |
 |               CoreGCN Sampling [13]               |  CVPR'21  |  ✅ |
+|               Ensemble [14]                       |  CVPR'18  |  ✅ |
+|               MCDAL [15]                |  Knowledge-based Systems'19  |  ✅ |
 
 
 
@@ -53,9 +55,7 @@ TWD
 
 
 ## References
-<!-- - [x] (UncertainGCN, CoreGCN, CVPR'21) Sequential Graph Convolutional Network for Active Learning [paper](https://arxiv.org/pdf/2006.10219.pdf) [code](https://github.com/razvancaramalau/Sequential-GCN-for-Active-Learning) -->
 
-<!-- - [x] (ICDM'20) Active Learning with Multi-granular Graph Auto-Encoder [paper](https://ieeexplore.ieee.org/document/9338373/authors#authors)  -->
 [1] (ClusterMargin, 2021) Batch Active Learning at Scale
 
 [2] (WAAL, AISTATS'20) Deep Active Learning: Unified and Principled Method for Query and Training [paper](https://arxiv.org/pdf/1911.09162.pdf) [code](https://github.com/cjshui/WAAL)
@@ -63,8 +63,8 @@ TWD
 [3] (BADGE, ICLR'20) Deep Batch Active Learning by Diverse, Uncertain Gradient Lower Bounds [paper](https://openreview.net/forum?id=ryghZJBKPS) [code](https://github.com/JordanAsh/badge)
 
 <!-- - [x] (PROXY, ICLR'20) Selection via Proxy: Efficient Data Selection for Deep Learning [paper](https://arxiv.org/pdf/1906.11829.pdf) [code](https://github.com/stanford-futuredata/selection-via-proxy) -->
-<!-- - [x] (ECCV'20) Consistency-based semi-supervised active learning: Towards minimizing labeling cost [paper](https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123550511.pdf) [code]() -->
-<!-- - [YuLi] (Knowledge-based Systems'19) Multi-criteria active deep learning for image classification [paper](https://www.sciencedirect.com/science/article/abs/pii/S0950705119300747?via%3Dihub) [code](https://github.com/houxingxing/Multi-Criteria-Active-Deep-Learning-for-Image-Classification) -->
+
+
 [4] (ASAL, WACV'20) Adversarial Sampling for Active Learning [paper](https://arxiv.org/pdf/1808.06671.pdf) 
 
 [5] (CVPR'19) Learning Loss for Active Learning [paper](https://arxiv.org/pdf/1905.03677v1.pdf) [code](https://github.com/Mephisto405/Learning-Loss-for-Active-Learning)
@@ -75,6 +75,7 @@ TWD
 
 <!-- - [Muxi] (ICML'19) Bayesian Generative Active Deep Learning [paper](https://arxiv.org/pdf/1904.11643v1.pdf) [code](https://github.com/toantm/BGADL) -->
 <!-- - [YuLi] (AAAI'19) (SPAL) Self-Paced Active Learning: Query the Right Thing at the Right Time [paper](https://ojs.aaai.org//index.php/AAAI/article/view/4445)  -->
+
 [8] (CORE-SET, ICLR'18) Active Learning for Convolutional Neural Networks: A Core-Set Approach [paper](https://arxiv.org/pdf/1708.00489.pdf) [code](https://github.com/ozansener/active_learning_coreset)
 
 [9] (DFAL, 2018) Adversarial Active Learning for Deep Networks: a Margin Based Approach
@@ -84,13 +85,20 @@ TWD
 [11] (DBAL, ICML'17) Deep Bayesian Active Learning with Image Data [paper](https://arxiv.org/pdf/1703.02910.pdf) [code](https://github.com/bnjasim/Deep-Bayesian-Active-Learning)
 
 [12] (Least Confidence/Margin/Entropy, IJCNN'14) A New Active Labeling Method for Deep Learning, IJCNN, 2014
-<!-- - [13] (Least Confidence/Margin/Entropy, IJCNN'14) A New Active Labeling Method for Deep Learning, IJCNN, 2014 -->
-<!-- - [YuLi] (LAL, NIPS'17) Learning Active Learning from Data [paper](https://papers.nips.cc/paper/2017/file/8ca8da41fe1ebc8d3ca31dc14f5fc56c-Paper.pdf) [code](https://github.com/ksenia-konyushkova/LAL) -->
-<!-- - [Muxi] (Emsemble, CVPR'18) The power of ensembles for active learning in image classification [paper](https://openaccess.thecvf.com/content_cvpr_2018/papers/Beluch_The_Power_of_CVPR_2018_paper.pdf)  -->
+
+
+<!-- - [x] (ICDM'20) Active Learning with Multi-granular Graph Auto-Encoder [paper](https://ieeexplore.ieee.org/document/9338373/authors#authors)  -->
+
 
 [13] (UncertainGCN, CoreGCN, CVPR'21) Sequential Graph Convolutional Network for Active Learning [paper](https://arxiv.org/pdf/2006.10219.pdf) [code](https://github.com/razvancaramalau/Sequential-GCN-for-Active-Learning)
 
+[14] (Emsemble, CVPR'18) The power of ensembles for active learning in image classification [paper](https://openaccess.thecvf.com/content_cvpr_2018/papers/Beluch_The_Power_of_CVPR_2018_paper.pdf) 
 
+[15] (Knowledge-based Systems'19) Multi-criteria active deep learning for image classification [paper](https://www.sciencedirect.com/science/article/abs/pii/S0950705119300747?via%3Dihub) [code](https://github.com/houxingxing/Multi-Criteria-Active-Deep-Learning-for-Image-Classification)
+
+<!-- - [x] (ECCV'20) Consistency-based semi-supervised active learning: Towards minimizing labeling cost [paper](https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123550511.pdf) [code]() -->
+
+<!-- - [YuLi] (LAL, NIPS'17) Learning Active Learning from Data [paper](https://papers.nips.cc/paper/2017/file/8ca8da41fe1ebc8d3ca31dc14f5fc56c-Paper.pdf) [code](https://github.com/ksenia-konyushkova/LAL) -->
 
 <!-- ## Image Regression -->
 <!-- TBW -->

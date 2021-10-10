@@ -52,7 +52,6 @@ strategies=(
             # 'ClusterMarginSampling' \
             # 'uncertainGCN' \
             # 'coreGCN' \
-            # 'LAL' \
             'MCADL' \
             )
             
