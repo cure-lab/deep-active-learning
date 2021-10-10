@@ -14,6 +14,8 @@ import time
 # Implementation of the paper: 
 # Code for paper Ksenia Konyushkova, Raphael Sznitman, Pascal Fua 'Learning Active Learning from Data', NIPS 2017
 # Based on https://github.com/ksenia-konyushkova/LAL
+# Note: this method is only suitable for binary classification problem and random forest model
+#  and hence not used in our experiment
 
 class LALmodel:
     ''' Class for the regressor that predicts the expected error reduction caused by adding datapoints'''
@@ -106,10 +108,10 @@ class LearningAL(Strategy):
         return feature_vector, gains_quality    
 
 
-    def _getFeaturevector4LAL(self, model, unknown_data, known_labels, nFeatures):
+    def _getFeaturevector4LAL(self, unknown_data, known_labels, nFeatures):
         
         # - predicted mean (but only for n_points_per_experiment datapoints)
-        prediction_unknown = model.predict_proba(unknown_data)
+        prediction_unknown = self.clf.predict_proba(unknown_data)
         
         # features are in the following order:
         # 1: prediction probability
@@ -124,26 +126,28 @@ class LearningAL(Strategy):
         f_1 = prediction_unknown[:,0]
         # - predicted standard deviation 
         # need to call each tree of a forest separately to get a prediction because it is not possible to get them all immediately
-        f_2 = np.std(np.array([tree.predict_proba(unknown_data)[:,0] for tree in model.estimators_]), axis=0)
+        # f_2 = np.std(np.array([tree.predict_proba(unknown_data)[:,0] for tree in model.estimators_]), axis=0)
         # - proportion of positive points
         # check np.size(self.indecesKnown)
         f_3 = (sum(known_labels>0)/np.size(self.indecesKnown))*np.ones_like(f_1)
         # the score estimated on out of bag estimate
-        f_4 = model.oob_score_*np.ones_like(f_1)
+        # f_4 = model.oob_score_*np.ones_like(f_1)
         # - coeficient of variance of feature importance
         # check if this is the number of features!
-        f_5 = np.std(model.feature_importances_/self.dataset.trainData.shape[1])*np.ones_like(f_1)
+        # f_5 = np.std(model.feature_importances_/self.dataset.trainData.shape[1])*np.ones_like(f_1)
         # - estimate variance of forest by looking at avergae of variance of some predictions
-        f_6 = np.mean(np.std(np.array([tree.predict_proba(unknown_data)[:,0] for tree in model.estimators_]), axis=0))*np.ones_like(f_1)
+        # f_6 = np.mean(np.std(np.array([tree.predict_proba(unknown_data)[:,0] for tree in model.estimators_]), axis=0))*np.ones_like(f_1)
         # - compute the average depth of the trees in the forest
-        f_7 = np.mean(np.array([tree.tree_.max_depth for tree in model.estimators_]))*np.ones_like(f_1)            
-        LALfeatures = np.concatenate(([f_1], [f_2], [f_3], [f_4], [f_5], [f_6], [f_7]), axis=0)
-        
+        # f_7 = np.mean(np.array([tree.tree_.max_depth for tree in model.estimators_]))*np.ones_like(f_1)            
+        # LALfeatures = np.concatenate(([f_1], [f_2], [f_3], [f_4], [f_5], [f_6], [f_7]), axis=0)
+        LALfeatures = np.concatenate(([f_1], [f_3]), axis=0)
+
         if nFeatures>7:
             # the same as f_3, check np.size(self.indecesKnown)
             f_8 = np.size(self.indecesKnown)*np.ones_like(f_1)
-            LALfeatures = np.concatenate(([f_1], [f_2], [f_3], [f_4], [f_5], [f_6], [f_7], [f_8]), axis=0)
-        
+            # LALfeatures = np.concatenate(([f_1], [f_2], [f_3], [f_4], [f_5], [f_6], [f_7], [f_8]), axis=0)
+            LALfeatures = np.concatenate(([f_1], [f_3]), axis=0)
+
         LALfeatures = np.transpose(LALfeatures)        
         
         return LALfeatures

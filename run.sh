@@ -20,12 +20,12 @@ if [ ! -d "$DIRECTORY" ]; then
 fi
 
 ########### RUN MAIN.py ###############
-dataset=mnist
-model=LeNet
-start=2
-end=20
-step=2
-n_epoch=50
+# dataset=mnist
+# model=LeNet
+# start=2
+# end=20
+# step=2
+# n_epoch=50
 
 # dataset=cifar10
 # model=ResNet18
@@ -48,12 +48,12 @@ strategies=(
             # 'WAAL' \
             # 'ActiveLearningByLearning' \
             # 'VAAL' \
-            'LearningLoss' \
+            # 'LearningLoss' \
             # 'ClusterMarginSampling' \
             # 'uncertainGCN' \
             # 'coreGCN' \
             # 'LAL' \
-            # 'MultiCritera' \
+            'MCADL' \
             )
             
 save_path=save/${DATE}/${dataset}
