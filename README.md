@@ -8,7 +8,7 @@ To run this code fully, you'll need [PyTorch](https://pytorch.org/) (we're using
 We've been running our code in Python 3.7.
 
 # Algorithms Implemented
-## Image Classification
+## Deep active learning Strategies
 |                Sampling Strategies                |    Year    | Done |
 |:-------------------------------------------------:|:----------:|:----:|
 |                  Random Sampling                  |      x     |  ✅ |
@@ -35,6 +35,15 @@ We've been running our code in Python 3.7.
 |               MCDAL [15]                |  Knowledge-based Systems'19  |  ✅ |
 
 
+## Deep active learning + Semi-supervised learning
+
+|                Sampling Strategies                |    Year    | Done |
+|:-------------------------------------------------:|:----------:|:----:|
+|               Consistency-SSLAL [16]                |  ECCV'20  |  In progress |
+|               MixMatch-SSLAL [17]                |  arXiv  |  ✅ |
+|               UDA [18]                |  NIPS'20  |  In progress |
+
+
 
 
 # Running an experiment
@@ -42,15 +51,9 @@ We've been running our code in Python 3.7.
 `python main.py --model ResNet18  --dataset cifar10 --strategy LeastConfidence`\
 runs an active learning experiment using ResNet18 and CIFAR-10 data, querying according to the LeastConfidence algorithm.
 
-<!-- `python main.py --model mlp --nQuery 5 --did 6 --strategy conf`\
-runs an active learning experiment using an MLP and dataset number 6 from OpenML, querying batches of 10,000 with confidence sampling.
-Note that in our code, OpenML datasets can only be used with MLP architectures.
-  -->
-
-The result will be saved in the **/save** directory
+The result will be saved in the **./save** directory
 
 # Analyzing experimental results
-<!-- See the readme file in `scripts/` for more details about generating plots like those in our paper. -->
 TWD
 
 
@@ -96,7 +99,12 @@ TWD
 
 [15] (Knowledge-based Systems'19) Multi-criteria active deep learning for image classification [paper](https://www.sciencedirect.com/science/article/abs/pii/S0950705119300747?via%3Dihub) [code](https://github.com/houxingxing/Multi-Criteria-Active-Deep-Learning-for-Image-Classification)
 
-<!-- - [x] (ECCV'20) Consistency-based semi-supervised active learning: Towards minimizing labeling cost [paper](https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123550511.pdf) [code]() -->
+[16] (ECCV'20) Consistency-based semi-supervised active learning: Towards minimizing labeling cost [paper](https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123550511.pdf) 
+
+[17] (Google, NIPS’20) Unsupervised Data Augmentation for Consistency Training 
+
+[18] (Google, arXiv) Combining MixMatch and Active Learning for Better Accuracy with Fewer Labels 
+
 
 <!-- - [YuLi] (LAL, NIPS'17) Learning Active Learning from Data [paper](https://papers.nips.cc/paper/2017/file/8ca8da41fe1ebc8d3ca31dc14f5fc56c-Paper.pdf) [code](https://github.com/ksenia-konyushkova/LAL) -->
 

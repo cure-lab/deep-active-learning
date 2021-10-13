@@ -19,12 +19,23 @@ if [ ! -d "$DIRECTORY" ]; then
     mkdir ./save/${DATE}/
 fi
 
+# For reproducibility in a eGPU environment
+export CUBLAS_WORKSPACE_CONFIG=:16:8
+
 ########### RUN MAIN.py ###############
+# dataset=mnist
+# model=LeNet
+# start=2
+# end=20
+# step=2
+# n_epoch=50
+
+# For test use
 dataset=mnist
 model=LeNet
-start=2
-end=20
-step=2
+start=5
+end=100
+step=20
 n_epoch=50
 
 # dataset=cifar10
@@ -42,7 +53,6 @@ strategies=(
             # 'BadgeSampling' \
             # 'BALDDropout' \
             # 'LeastConfidence' \
-            # 'LeastConfidenceDropout' \
             # 'KMeansSampling' \
             # 'AdversarialBIM' \
             # 'WAAL' \
@@ -52,17 +62,22 @@ strategies=(
             # 'ClusterMarginSampling' \
             # 'uncertainGCN' \
             # 'coreGCN' \
-            'MCADL' \
+            # 'MCADL' \
+            'ssl_LC' \
+            'ssl_Random' \
+            'ssl_Diff2AugKmeans' \
             )
             
 save_path=save/${DATE}/${dataset}
 save_file='main_result.csv'
 
-for strategy in "${strategies[@]}"
-do
+data_path='/research/dept2/yuli/datasets'
 
-        for rand_idx in 1 2 3 4 5
+for rand_idx in 1 2 3 4 5
+do
+        for strategy in "${strategies[@]}"
         do
+        
             echo $strategy
             echo $dataset
             manualSeed=$((10*$rand_idx))
@@ -76,7 +91,9 @@ do
                             --strategy $strategy \
                             --rand_idx $rand_idx \
                             --save_path $save_path \
-                            --manualSeed $manualSeed
+                            --save_file $save_file \
+                            --manualSeed $manualSeed \
+                            --data_path $data_path 
         done
     # done
 done

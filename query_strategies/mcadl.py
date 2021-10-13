@@ -40,10 +40,10 @@ class MCADL(Strategy):
             while True:
                 k += 1
                 lgst = heapq.nlargest(k, D)
-                if lgst.sum() > 0.5:
+                if sum(lgst) > 0.5:
                     break
 
-            Z = heapq.nlargest(k, D)
+            Z = np.array(heapq.nlargest(k, D))
             v = np.absolute(Z - Z.mean()).mean()
             uncert[d] = 1-v
 
@@ -68,7 +68,7 @@ class MCADL(Strategy):
     def getID(self, pred_label, listID):
         '''
         Input:
-        @pred: the predicted label for the unlabeled samples
+        @pred: the predicted label for the all samples
         @listID: the index of k neighbor to current sample
         Return:
         @maxID: the psesudo label
@@ -144,7 +144,7 @@ class MCADL(Strategy):
             # they tends to select samples from the clases with low performance 
             # to balance the performance among classes
             q = [1./i for i in list(now_acc)]
-            q = q / sum(q)
+            q = [i/sum(q) for i in q]
 
         print("last_acc:", last_acc)
         print("acc:", now_acc)
@@ -161,15 +161,15 @@ class MCADL(Strategy):
         alpha = self.alpha_init * np.exp(-AR_t)
         beta = self.beta_init * np.exp(-AR_t)
 
-        proba = self.predict_prob(self.X[~self.idxs_lb], self.Y[~self.idxs_lb])
+        proba = self.predict_prob(self.X, self.Y)
         
-        idxs_unlabeled = list(np.nonzero(~self.idxs_lb)[0])
-        idxs_labeled = list(np.nonzero(self.idxs_lb)[0])
+        idxs_unlabeled = np.nonzero(~self.idxs_lb)[0]
+        idxs_labeled = np.nonzero(self.idxs_lb)[0]
         # for each sample, calculate its informativeness
         # density and similarity
         density = [-1.0]*len(self.idxs_lb)
         similarity = [-1.0]*len(self.idxs_lb)
-        for i in idxs_unlabeled:
+        for i in list(idxs_unlabeled):
             # for an unlabeled sample x_i, we determine its most similar samples x_s
             distance, kId = self.avg_cosine_distance(i, idxs_labeled)
             # The pesudo label of x_i is deciding by x_s
@@ -182,13 +182,13 @@ class MCADL(Strategy):
             similarity[i] = 1 - cosine_distance.max()
 
         
-        # uncertainty of all samples]
+        # uncertainty of all samples
         uncertainty_score = self.uncertainty(proba=proba, flag=self.idxs_lb)
         
         # label-based measure
         label_based_score = [-1.0]*len(self.idxs_lb)
 
-        for i in idxs_unlabeled:
+        for i in list(idxs_unlabeled):
             # for an unlabeled sample x_i, we determine its most similar samples x_s
             distance, kId = self.avg_cosine_distance(i, idxs_labeled)
             # The pesudo label of x_i is deciding by x_s
@@ -199,10 +199,10 @@ class MCADL(Strategy):
             label_based_score[i] = w_classes
         
 
-        info_data = 0.5*density + 0.5*similarity
-        info_model = beta*uncertainty_score + (1-beta)*label_based_score
-        infomativeness = alpha*info_data + (1-alpha)*info_model
-        infomativeness = infomativeness[idxs_unlabeled]
+        info_data = [0.5*density[i] + 0.5*similarity[i] for i in range(len(density))]
+        info_model = [beta*uncertainty_score[i] + (1-beta)*label_based_score[i] for i in range(len(label_based_score))]
+        infomativeness = [alpha*info_data[i] + (1-alpha)*info_model[i] for i in range(len(info_model))]
+        infomativeness = np.array(infomativeness)[idxs_unlabeled]
 
         # select the top-n samples
         ranked_idx = infomativeness.argsort()[::-1][:n]

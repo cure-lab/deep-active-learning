@@ -1,5 +1,6 @@
 from joblib.externals.cloudpickle.cloudpickle import instance
 import numpy as np
+import random
 from sklearn import preprocessing
 from torch import nn
 import sys
@@ -12,7 +13,7 @@ from copy import deepcopy
 from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time, adjust_learning_rate
 import time
 
-torch.backends.cudnn.benchmark = True
+
 
 class Strategy:
     def __init__(self, X, Y, idxs_lb, net, handler, args):
@@ -26,12 +27,27 @@ class Strategy:
         if args.pretrained:
             self.preprocessing = args.preprocessing
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # self.device = torch.device('cuda', args.d) if torch.cuda.is_available() else 'cpu'
+
         self.clf = net.to(self.device)
         self.net = net.to(self.device)
 
         if self.pretrained: # use the latent vector of the inputs as training data
             self.X_p = self.get_pretrained_embedding(X, Y)
         
+        # for reproducibility
+        self.g = torch.Generator()
+        self.g.manual_seed(0)
+
+    def seed_worker(self, worker_id):
+        """
+        To preserve reproducibility when num_workers > 1
+        """
+        # https://pytorch.org/docs/stable/notes/randomness.html
+        worker_seed = torch.initial_seed() % 2**32
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+
 
     def query(self, n):
         pass
@@ -82,6 +98,11 @@ class Strategy:
                 m.reset_parameters()
         
         self.clf =  self.clf.apply(weight_reset)
+        # if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        # self.clf = nn.parallel.DistributedDataParallel(self.clf,
+                                                        # find_unused_parameters=True,
+                                                        # )
         self.clf = nn.DataParallel(self.clf).to(self.device)
         parameters = self.clf.parameters() if not self.pretrained else self.clf.module.classifier.parameters()
         optimizer = optim.SGD(parameters, lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
@@ -97,9 +118,16 @@ class Strategy:
         if idxs_train.shape[0] != 0:
             transform = self.args.transform_tr if not self.pretrained else None
 
-            loader_tr = DataLoader(self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train], 
-                                    torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
-                                    transform=transform), shuffle=True, 
+            train_data = self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train], 
+                                torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
+                                    transform=transform)
+
+            loader_tr = DataLoader(train_data, 
+                                    shuffle=True,
+                                    pin_memory=True,
+                                    # sampler = DistributedSampler(train_data),
+                                    worker_init_fn=self.seed_worker,
+                                    generator=self.g,
                                     **self.args.loader_tr_args)
 
             for epoch in range(n_epoch):
@@ -140,10 +168,10 @@ class Strategy:
         # add support for pretrained model
         transform=self.args.transform_te if not self.pretrained else self.preprocessing
         if type(X) is np.ndarray:
-            loader_te = DataLoader(self.handler(X, Y, transform=transform),
+            loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True, 
                             shuffle=False, **self.args.loader_te_args)
         else: 
-            loader_te = DataLoader(self.handler(X.numpy(), Y, transform=transform),
+            loader_te = DataLoader(self.handler(X.numpy(), Y, transform=transform), pin_memory=True,
                             shuffle=False, **self.args.loader_te_args)
         
         if not self.pretrained:
@@ -166,7 +194,7 @@ class Strategy:
     def predict_prob(self, X, Y):
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
         loader_te = DataLoader(self.handler(X, Y, 
-                        transform=transform), shuffle=False, **self.args.loader_te_args)
+                        transform=transform), shuffle=False, pin_memory=True, **self.args.loader_te_args)
 
         if not self.pretrained:
             self.clf.eval()
@@ -185,7 +213,7 @@ class Strategy:
 
     def predict_prob_dropout(self, X, Y, n_drop):
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
-        loader_te = DataLoader(self.handler(X, Y, transform=transform),
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True,
                             shuffle=False, **self.args.loader_te_args)
         if not self.pretrained:
             self.clf.train()
@@ -207,7 +235,7 @@ class Strategy:
 
     def predict_prob_dropout_split(self, X, Y, n_drop):
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
-        loader_te = DataLoader(self.handler(X, Y, transform=transform),
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True,
                             shuffle=False, **self.args.loader_te_args)
 
         if not self.pretrained:
@@ -228,7 +256,7 @@ class Strategy:
     def get_embedding(self, X, Y):
         """ get last layer embedding from current model"""
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
-        loader_te = DataLoader(self.handler(X, Y, transform=transform),
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True,
                             shuffle=False, **self.args.loader_te_args)
         if not self.pretrained:
             self.clf.eval()
@@ -254,7 +282,7 @@ class Strategy:
             raise ValueError("pretrained is not true")
 
         transform = self.preprocessing
-        loader_te = DataLoader(self.handler(X, Y, transform=transform),
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True,
                             shuffle=False, **self.args.loader_te_args)
     
         embedding = torch.zeros([len(Y), 512])
@@ -277,7 +305,7 @@ class Strategy:
         model.eval()
         nLab = len(np.unique(Y))
         embedding = np.zeros([len(Y), embDim * nLab])
-        loader_te = DataLoader(self.handler(X, Y, transform=transform),
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True,
                             shuffle=False, **self.args.loader_te_args)
         with torch.no_grad():
             for x, y, idxs in loader_te:

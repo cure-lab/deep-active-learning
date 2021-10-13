@@ -1,1 +1,1 @@
-[init=1200] [query=1200] [end=12000]
+success!

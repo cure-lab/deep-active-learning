@@ -12,7 +12,6 @@ from copy import deepcopy
 from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time
 import time
 
-torch.backends.cudnn.benchmark = True
 
 lambda_u = 75
 ema_decay = 0.999

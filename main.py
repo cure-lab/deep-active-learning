@@ -2,27 +2,20 @@ from re import I
 import numpy as np
 import random
 import sys
-import gzip
-from torch.utils import data
 
-from torchvision.transforms.transforms import Resize
-import openml
 import os
 import argparse
 from dataset import get_dataset, get_handler, get_wa_handler
-from sklearn.preprocessing import LabelEncoder
 import torch.nn.functional as F
-from torch import nn
 from torchvision import transforms
 import torch
-import pdb
-from scipy.stats import zscore
 import csv
 import time
 
 import query_strategies 
 import mymodels
 from utils import print_log
+# import torch.distributed as dist
 
 # code based on https://github.com/ej0cl6/deep-active-learning"
 
@@ -30,6 +23,7 @@ from utils import print_log
 query_strategies_name = sorted(name for name in query_strategies.__dict__
                      if callable(query_strategies.__dict__[name]))
 model_name = sorted(name for name in mymodels.__dict__)
+
 
 ###############################################################################
 parser = argparse.ArgumentParser()
@@ -51,9 +45,9 @@ parser.add_argument("-t","--total", action='store_true',
                     help="Training on the entire dataset")
 
 # model and data
-parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str, default='mlp')
+parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str)
 parser.add_argument('--dataset', help='dataset (non-openML)', type=str, default='')
-parser.add_argument('--data_path', help='data path', type=str, default='/research/dept2/yuli/datasets')
+parser.add_argument('--data_path', help='data path', type=str)
 parser.add_argument('--save_path', help='result save save_dir', default='./save')
 parser.add_argument('--save_file', help='result save save_dir', default='result.csv')
 
@@ -70,6 +64,11 @@ parser.add_argument("-s","--s_margin", type=float, default=0.1,
 # for ensemble based methods
 parser.add_argument('--n_ensembles', type=int, default=1, 
                     help='number of ensemble')
+
+# for proxy based selection
+parser.add_argument('--proxy_model', type=str, default=None,
+                    help='the architecture of the proxy model')
+
 
 # training hyperparameters
 parser.add_argument('--optimizer',
@@ -95,19 +94,33 @@ parser.add_argument('--pretrained',
                     action='store_true',
                     default=False, help='use pretrained feature extractor')
 
+# automatically set
+# parser.add_argument("--local_rank", type=int)
+
 ##########################################################################
 args = parser.parse_args()
+# set the backend of the distributed parallel
+# ngpus = torch.cuda.device_count()
+# dist.init_process_group("nccl")
+
+############################# For reproducibility #############################################
+
 if args.manualSeed is None:
     args.manualSeed = random.randint(0, 10000)
 random.seed(args.manualSeed)
 torch.manual_seed(args.manualSeed)
 np.random.seed(args.manualSeed)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if device == 'cuda':
+
+if torch.cuda.is_available():
     torch.cuda.manual_seed(args.manualSeed)
+    # True ensures the algorithm selected by CUFA is deterministic
+    # torch.backends.cudnn.deterministic = True
+    torch.set_deterministic(True)
+    # False ensures CUDA select the same algorithm each time the application is run
+    torch.backends.cudnn.benchmark = False
 
-
-# specify the hyperparameters
+############################# Specify the hyperparameters #######################################
+ 
 args_pool = {'mnist':
                 { 
                  'n_class':10,
@@ -118,7 +131,7 @@ args_pool = {'mnist':
                                 transforms.Normalize((0.1307,), (0.3081,))]),
                  'transform_te': transforms.Compose([transforms.ToTensor(), 
                                 transforms.Normalize((0.1307,), (0.3081,))]),
-                 'loader_tr_args':{'batch_size': 1024, 'num_workers': 8},
+                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
                 },
             'fashionmnist':
@@ -131,7 +144,7 @@ args_pool = {'mnist':
                                 transforms.Normalize((0.1307,), (0.3081,))]),
                  'transform_te': transforms.Compose([transforms.ToTensor(), 
                                     transforms.Normalize((0.1307,), (0.3081,))]),
-                 'loader_tr_args':{'batch_size': 512, 'num_workers': 1},
+                 'loader_tr_args':{'batch_size': 256, 'num_workers': 1},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 1},
                 },
             'svhn':
@@ -145,8 +158,8 @@ args_pool = {'mnist':
                                     transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970))]),
                  'transform_te': transforms.Compose([transforms.ToTensor(), 
                                     transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970))]),
-                 'loader_tr_args':{'batch_size': 128, 'num_workers': 1},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 1},
+                 'loader_tr_args':{'batch_size': 128, 'num_workers': 8},
+                 'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
                 },
             'cifar10':
                 {
@@ -159,8 +172,8 @@ args_pool = {'mnist':
                                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
                  'transform_te': transforms.Compose([transforms.ToTensor(), 
                                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
-                 'loader_tr_args':{'batch_size': 256, 'num_workers': 1},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 1},
+                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
+                 'loader_te_args':{'batch_size': 512, 'num_workers': 8},
                  },
             'gtsrb': 
                {
@@ -175,8 +188,8 @@ args_pool = {'mnist':
                                     transforms.Resize((32, 32)),
                                     transforms.ToTensor(), 
                                     transforms.Normalize([0.3337, 0.3064, 0.3171], [0.2672, 0.2564, 0.2629])]),
-                 'loader_tr_args':{'batch_size': 256, 'num_workers': 1},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 1},
+                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
+                 'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
                 }
         }
 
@@ -250,7 +263,6 @@ def main():
     else:
         net = mymodels.__dict__[args.model](n_class=args.n_class, bayesian=bayesian)
 
-
     # selection strategy
     if args.strategy == 'ActiveLearningByLearning': # active learning by learning (albl)
         albl_list = [query_strategies.LeastConfidence(X_tr, Y_tr, idxs_lb, net, handler, args),
@@ -280,7 +292,7 @@ def main():
     out_file = os.path.join(args.save_path, args.save_file)
     for rd in range(1, NUM_ROUND+1):
         print('Round {}/{}'.format(rd, NUM_ROUND), flush=True)
-
+  
         # query
         ts = time.time()
         output = strategy.query(NUM_QUERY)
@@ -288,9 +300,6 @@ def main():
         idxs_lb[q_idxs] = True
         te = time.time()
         tp = te - ts
-
-        # report weighted accuracy
-        # corr = (strategy.predict(X_tr[q_idxs], torch.Tensor(Y_tr.numpy()[q_idxs]).long())).numpy() == Y_tr.numpy()[q_idxs]
 
         # update
         strategy.update(idxs_lb)
