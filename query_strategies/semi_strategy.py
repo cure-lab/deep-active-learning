@@ -12,8 +12,9 @@ from copy import deepcopy
 from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time
 import time
 
+torch.backends.cudnn.benchmark = True
 
-lambda_u = 75
+lambda_u = 100
 ema_decay = 0.999
 T = 0.5
 alpha = 0.75
@@ -55,7 +56,7 @@ def interleave(xy, batch):
 class SemiLoss(object):
     def __call__(self, outputs_x, targets_x, outputs_u, targets_u, epoch):
         probs_u = torch.softmax(outputs_u, dim=1)
-
+        # print("in loss",outputs_x.size(0),targets_x.size(0))
         Lx = -torch.mean(torch.sum(F.log_softmax(outputs_x, dim=1) * targets_x, dim=1))
         Lu = torch.mean((probs_u - targets_u)**2)
 
@@ -82,6 +83,9 @@ class WeightEMA(object):
                 # customized weight decay
                 param.mul_(1 - self.wd)
 
+    def set_wd(self,lr):
+        self.wd = 0.02 * lr
+
 class semi_Strategy:
     def __init__(self, X, Y, idxs_lb, net, handler, args):
         self.X = X  # vector
@@ -100,10 +104,9 @@ class semi_Strategy:
         if self.pretrained: # use the latent vector of the inputs as training data
             self.X_p = self.get_pretrained_embedding(X, Y)
 
-        if self.args.semi == True:
-            self.ema_model = net[1].to(self.device)
-            for param in self.ema_model.parameters():
-                    param.detach_()
+        self.ema_model = net[1].to(self.device)
+        for param in self.ema_model.parameters():
+            param.detach_()
         
     def query(self, n):
         pass
@@ -145,7 +148,7 @@ class semi_Strategy:
                 batch_size = inputs_x.size(0)
                 targets_x = torch.zeros(batch_size, 10).scatter_(1, targets_x.view(-1,1).long(), 1)
                 inputs_x, targets_x = inputs_x.to(self.device), targets_x.to(self.device)
-            
+
 
             try:
                 (inputs_u,inputs_u2), _ , _ = unlabeled_train_iter.next()
@@ -185,15 +188,17 @@ class semi_Strategy:
 
             mixed_input = l * input_a + (1 - l) * input_b
             mixed_target = l * target_a + (1 - l) * target_b
-
+            # print(mixed_input.size(0))
             # interleave labeled and unlabed samples between batches to get correct batchnorm calculation 
             mixed_input = list(torch.split(mixed_input, batch_size))
+            # print(len(mixed_input),len(mixed_input[0]),len(mixed_input[1]))
             mixed_input = interleave(mixed_input, batch_size)
 
             logits = [self.clf(mixed_input[0])[0]]
+            # print(logits[0].size(0))
             for input in mixed_input[1:]:
                 logits.append(self.clf(input)[0])
-
+            # print(len(logits))
             # put interleaved samples back
             logits = interleave(logits, batch_size)
             logits_x = logits[0]
@@ -259,12 +264,15 @@ class semi_Strategy:
                                     torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), 
                                     transform=TransformTwice(transform)), shuffle=True, 
                                     **self.args.loader_tr_args)
-            train_iteration = max(len(loader_labeled.dataset.X),len(loader_unlabeled.dataset.X))/self.args.loader_tr_args['batch_size']
+            # train_iteration = max(len(loader_labeled.dataset.X),len(loader_unlabeled.dataset.X))/self.args.loader_tr_args['batch_size']
+            train_iteration = len(self.X) / self.args.loader_tr_args['batch_size']
+            print('X',len(self.X))
             # print('has:', n_epoch)
-            for epoch in range(50):
+            for epoch in range(n_epoch):
                 ts = time.time()
                 current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule, self.args)
-                
+                ema_optimizer.set_wd(current_learning_rate)
+
                 # Display simulation time
                 need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (n_epoch - epoch))
                 need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(need_hour, need_mins, need_secs)
@@ -285,7 +293,7 @@ class semi_Strategy:
                 recorder.update(epoch, train_los, train_acc, 0, 0)
 
                 # The converge condition 
-                if abs(previous_loss - train_los) < 0.001:
+                if abs(previous_loss - train_los) < 0.0001:
                     break
                 else:
                     previous_loss = train_los
@@ -328,15 +336,15 @@ class semi_Strategy:
                         transform=transform), shuffle=False, **self.args.loader_te_args)
 
         if not self.pretrained:
-            self.clf.eval()
+            self.ema_model.eval()
         else:
-            self.clf.classifier.eval()
+            self.ema_model.classifier.eval()
 
         probs = torch.zeros([len(Y), len(np.unique(self.Y))])
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x, y = x.to(self.device), y.to(self.device)
-                out, e1 = self.clf(x)
+                out, e1 = self.ema_model(x)
                 prob = F.softmax(out, dim=1)
                 probs[idxs] = prob.cpu().data
         
@@ -347,9 +355,9 @@ class semi_Strategy:
         loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
         if not self.pretrained:
-            self.clf.train()
+            self.ema_model.train()
         else:
-            self.clf.classifier.train()
+            self.ema_model.classifier.train()
 
         probs = torch.zeros([len(Y), len(np.unique(Y))])
         with torch.no_grad():
@@ -357,7 +365,7 @@ class semi_Strategy:
                 print('n_drop {}/{}'.format(i+1, n_drop))
                 for x, y, idxs in loader_te:
                     x, y = x.to(self.device), y.to(self.device) 
-                    out, e1 = self.clf(x)
+                    out, e1 = self.ema_model(x)
                     prob = F.softmax(out, dim=1)
                     probs[idxs] += prob.cpu().data
         probs /= n_drop
@@ -370,9 +378,9 @@ class semi_Strategy:
                             shuffle=False, **self.args.loader_te_args)
 
         if not self.pretrained:
-            self.clf.train()
+            self.ema_model.train()
         else:
-            self.clf.classifier.train()
+            self.ema_model.classifier.train()
 
         probs = torch.zeros([n_drop, len(Y), len(np.unique(Y))])
         with torch.no_grad():
@@ -380,7 +388,7 @@ class semi_Strategy:
                 print('n_drop {}/{}'.format(i+1, n_drop))
                 for x, y, idxs in loader_te:
                     x, y = x.to(self.device), y.to(self.device) 
-                    out, e1 = self.clf(x)
+                    out, e1 = self.ema_model(x)
                     probs[i][idxs] += F.softmax(out, dim=1).cpu().data
             return probs
 
@@ -390,17 +398,17 @@ class semi_Strategy:
         loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
         if not self.pretrained:
-            self.clf.eval()
+            self.ema_model.eval()
         else:
-            self.clf.classifier.eval()
+            self.ema_model.classifier.eval()
         
         embedding = torch.zeros([len(Y), 
-                self.clf.module.get_embedding_dim() if isinstance(self.clf, nn.DataParallel) 
-                else self.clf.get_embedding_dim()])
+                self.ema_model.module.get_embedding_dim() if isinstance(self.ema_model, nn.DataParallel) 
+                else self.ema_model.get_embedding_dim()])
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x, y = x.to(self.device), y.to(self.device) 
-                out, e1 = self.clf(x)
+                out, e1 = self.ema_model(x)
                 embedding[idxs] = e1.data.cpu().float()
         
         return embedding
@@ -420,7 +428,7 @@ class semi_Strategy:
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x, y = x.to(self.device), y.to(self.device) 
-                e1 = self.clf.fe.encode_image(x)
+                e1 = self.ema_model.fe.encode_image(x)
                 embedding[idxs] = e1.data.cpu().float()
         
         return embedding
@@ -429,7 +437,7 @@ class semi_Strategy:
         """ gradient embedding (assumes cross-entropy loss) of the last layer"""
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
 
-        model = self.clf
+        model = self.ema_model
         if isinstance(model, nn.DataParallel):
             model = model.module
         embDim = model.get_embedding_dim()
@@ -441,7 +449,7 @@ class semi_Strategy:
         with torch.no_grad():
             for x, y, idxs in loader_te:
                 x, y = x.to(self.device), y.to(self.device) 
-                cout, out = self.clf(x)
+                cout, out = self.ema_model(x)
                 out = out.data.cpu().numpy()
                 batchProbs = F.softmax(cout, dim=1).data.cpu().numpy()
                 maxInds = np.argmax(batchProbs,1)
