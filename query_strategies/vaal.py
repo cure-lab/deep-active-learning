@@ -434,13 +434,20 @@ class VAAL(Strategy):
             **self.args.loader_tr_args)
         labeled_data = self.read_data(labeled_loader)
         unlabeled_data = self.read_data(unlabeled_loader, labels=False)
+        self.vae = self.vae.apply(weight_reset).to(device)
+        self.vae = nn.DataParallel(self.vae).to(device)
+        self.discriminator = self.discriminator.apply(weight_reset).to(device)
+        self.discriminator = nn.DataParallel(self.discriminator).to(device)
         optim_vae = optim.Adam(self.vae.parameters(), lr=5e-4)
+        
         # optim_task_model = optim.SGD(task_model.parameters(), lr=0.01, weight_decay=5e-4, momentum=0.9)
         optim_discriminator = optim.Adam(self.discriminator.parameters(), lr=5e-4)
 
         self.clf = self.net.apply(weight_reset).to(device)
-        optimizer = optim.Adam(self.clf.parameters(), lr=self.args.lr, weight_decay=0)
+        self.clf = nn.DataParallel(self.clf).to(device)
 
+        # optimizer = optim.Adam(self.clf.parameters(), lr=self.args.lr, weight_decay=0)
+        optimizer = optim.SGD(self.clf.parameters(), lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
                                             transform=transform), shuffle=True,
@@ -450,14 +457,15 @@ class VAAL(Strategy):
         accCurrent = 0.
         lossOld = 0.
         while epoch < n_epoch:
-            accCurrent,train_loss = self.vaal_train(epoch, loader_tr, optimizer, labeled_data, unlabeled_data, optim_vae, optim_discriminator)
+            current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule, self.args)
+            accCurrent, train_loss = self.vaal_train(epoch, loader_tr, optimizer, labeled_data, unlabeled_data, optim_vae, optim_discriminator)
             epoch += 1
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
             #
-            if abs(train_loss-lossOld) < 0.001:  # reset if not converging
-                break
-            else: 
-                lossOld = train_loss
+            # if abs(train_loss-lossOld) < 0.001:  # reset if not converging
+            #     break
+            # else: 
+            #     lossOld = train_loss
 
 
     def query(self, n):
@@ -473,3 +481,26 @@ class VAAL(Strategy):
                                              self.cuda)
 
         return querry_indices
+
+def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    "Add by YU"
+    lr = args.lr
+    mu = args.momentum
+
+    if args.optimizer != "YF":
+        assert len(gammas) == len(
+            schedule), "length of gammas and schedule should be equal"
+        for (gamma, step) in zip(gammas, schedule):
+            if (epoch >= step):
+                lr = lr * gamma
+            else:
+                break
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+
+    elif args.optimizer == "YF":
+        lr = optimizer._lr
+        mu = optimizer._mu
+
+    return lr, mu
