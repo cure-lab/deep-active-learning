@@ -8,8 +8,8 @@ from .strategy import Strategy
 
 
 class ActiveLearningByLearning(Strategy):
-	def __init__(self, X, Y, idxs_lb, net, handler, args, strategy_list, delta = 0.1):
-		super(ActiveLearningByLearning, self).__init__(X, Y, idxs_lb, net, handler, args)
+	def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args, strategy_list, delta = 0.1):
+		super(ActiveLearningByLearning, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
 		self.strategy_list = strategy_list
 		self.n_strategy = len(self.strategy_list)
 		self.delta = delta

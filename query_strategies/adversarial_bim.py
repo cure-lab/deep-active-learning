@@ -6,8 +6,8 @@ from .strategy import Strategy
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class AdversarialBIM(Strategy):
-	def __init__(self, X, Y, idxs_lb, net, handler, args, eps=0.05):
-		super(AdversarialBIM, self).__init__(X, Y, idxs_lb, net, handler, args)
+	def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args, eps=0.05):
+		super(AdversarialBIM, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
 		self.eps = eps
 		
 	def cal_dis(self, x):

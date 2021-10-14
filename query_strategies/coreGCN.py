@@ -171,8 +171,8 @@ class kCenterGreedy(SamplingMethod):
 
 
 class coreGCN(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(coreGCN, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(coreGCN, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
         
     def query(self, n):
         # get the features of all data (labeled + unlabeled)

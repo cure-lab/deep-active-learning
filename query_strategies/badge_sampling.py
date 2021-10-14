@@ -74,8 +74,8 @@ def init_centers(X, K):
     return indsAll
 
 class BadgeSampling(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(BadgeSampling, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(BadgeSampling, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
 
     def query(self, n):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]

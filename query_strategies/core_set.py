@@ -7,8 +7,8 @@ from datetime import datetime
 from sklearn.metrics import pairwise_distances
 
 class CoreSet(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args, tor=1e-4):
-        super(CoreSet, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args, tor=1e-4):
+        super(CoreSet, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
         self.tor = tor
 
     def furthest_first(self, X, X_set, n):

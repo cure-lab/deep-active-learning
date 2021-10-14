@@ -5,8 +5,8 @@ from .strategy import Strategy
 from torch.autograd import Variable
 import pdb
 class AdversarialDeepFool(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args, max_iter=50):
-        super(AdversarialDeepFool, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args, max_iter=50):
+        super(AdversarialDeepFool, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
         self.max_iter = max_iter
 
     def cal_dis(self, x):

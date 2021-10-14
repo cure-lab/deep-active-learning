@@ -18,8 +18,8 @@ class AcquisitionBatch:
     orignal_scores: typing.Optional[typing.List[float]]
 
 class BatchBALD(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(BatchBALD_reduce, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(BatchBALD_reduce, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
         self.net = net
         self.args = args
 
