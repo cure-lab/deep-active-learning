@@ -86,11 +86,11 @@ class RecorderMeter(object):
         y_axis = np.zeros(self.total_epoch)
 
         plt.xlim(0, self.total_epoch)
-        plt.ylim(0, 100)
-        interval_y = 5
+        plt.ylim(0, 1)
+        interval_y = 0.05
         interval_x = 5
         plt.xticks(np.arange(0, self.total_epoch + interval_x, interval_x))
-        plt.yticks(np.arange(0, 100 + interval_y, interval_y))
+        plt.yticks(np.arange(0, 1 + interval_y, interval_y))
         plt.grid()
         plt.title(title, fontsize=20)
         plt.xlabel('the training epoch', fontsize=16)

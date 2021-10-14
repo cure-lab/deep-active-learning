@@ -36,3 +36,8 @@ LeastConfidence,2,budget,20.0,nStart,2.0,nQuery,2.0,labeled,18.0,accCompare,0.11
 LeastConfidence,2,budget,20.0,nStart,2.0,nQuery,2.0,labeled,20.0,accCompare,0.1121,0.5884,0.47630000000000006,t_query,7.422686576843262,t_iter,20.680795907974243
 RandomSampling,3,budget,20.0,nStart,2.0,nQuery,2.0,labeled,4.0,accCompare,0.1718,0.2165,0.04469999999999999,t_query,0.0015299320220947266,t_iter,3.553650140762329
 RandomSampling,3,budget,20.0,nStart,2.0,nQuery,2.0,labeled,6.0,accCompare,0.1718,0.1598,-0.01200000000000001,t_query,0.0017485618591308594,t_iter,4.733330488204956
+ssl_LC,1,budget,100.0,nStart,5.0,nQuery,20.0,labeled,25.0,accCompare,0.9574,0.9794,0.02200000000000002,t_query,8.600472927093506,t_iter,1408.6943757534027
+ssl_LC,1,budget,100.0,nStart,5.0,nQuery,20.0,labeled,45.0,accCompare,0.9574,0.9741,0.016699999999999937,t_query,6.928290843963623,t_iter,1069.1920964717865
+ssl_LC,1,budget,100.0,nStart,5.0,nQuery,20.0,labeled,65.0,accCompare,0.9574,0.9707,0.013299999999999979,t_query,5.2753307819366455,t_iter,1284.5560054779053
+ssl_LC,1,budget,100.0,nStart,5.0,nQuery,20.0,labeled,85.0,accCompare,0.9574,0.9672,0.00979999999999992,t_query,3.484539747238159,t_iter,1692.8920724391937
+ssl_Random,1,budget,100.0,nStart,5.0,nQuery,20.0,labeled,25.0,accCompare,0.9334,0.9424,0.009000000000000008,t_query,0.0015819072723388672,t_iter,1411.2466034889221

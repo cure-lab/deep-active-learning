@@ -250,8 +250,8 @@ class AdversarySampler:
 
 
 class VAAL(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(VAAL, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te,  idxs_lb, net, handler, args):
+        super(VAAL, self).__init__(X, Y,  X_te, Y_te, idxs_lb, net, handler, args)
         global device
         device = self.device
         if self.args.channels == 3:

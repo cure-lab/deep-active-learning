@@ -83,9 +83,11 @@ class WeightEMA(object):
                 param.mul_(1 - self.wd)
 
 class semi_Strategy:
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
         self.X = X  # vector
         self.Y = Y
+        self.X_te = X_te
+        self.Y_te = Y_te
         self.idxs_lb = idxs_lb # bool type
         self.handler = handler
         self.args = args
@@ -100,10 +102,9 @@ class semi_Strategy:
         if self.pretrained: # use the latent vector of the inputs as training data
             self.X_p = self.get_pretrained_embedding(X, Y)
 
-        if self.args.semi == True:
-            self.ema_model = net[1].to(self.device)
-            for param in self.ema_model.parameters():
-                    param.detach_()
+        self.ema_model = net[1].to(self.device)
+        for param in self.ema_model.parameters():
+                param.detach_()
         
     def query(self, n):
         pass

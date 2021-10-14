@@ -66,7 +66,7 @@ class LALmodel:
 class LearningAL(Strategy):
     '''Points are sampled according to a method described in K. Konyushkova, R. Sznitman, P. Fua 'Learning Active Learning from data'  '''
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
-        super(LearningAL, self).__init__(X, Y, idxs_lb, net, handler, args)
+        super(LearningAL, self).__init__(X, Y,  X_te, Y_te, idxs_lb, net, handler, args)
         self.n_estimators = args.n_estimators
         self.X_te = X_te
         self.Y_te = Y_te

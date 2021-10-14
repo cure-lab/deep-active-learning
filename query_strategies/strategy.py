@@ -16,9 +16,12 @@ import time
 
 
 class Strategy:
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
         self.X = X  # vector
         self.Y = Y
+        self.X_te = X_te
+        self.Y_te = Y_te
+
         self.idxs_lb = idxs_lb # bool type
         self.handler = handler
         self.args = args
@@ -140,6 +143,7 @@ class Strategy:
                 
                 # train one epoch
                 train_acc, train_los = self._train(epoch, loader_tr, optimizer)
+                test_acc = self.predict(self.X_te, self.Y_te)
 
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
@@ -147,20 +151,23 @@ class Strategy:
                 print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
                                                                                    need_time, current_learning_rate
                                                                                    ) \
-                + ' [Best : Train Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(True),
-                                                               1. - recorder.max_accuracy(True)))
+                + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
+                                                               1. - recorder.max_accuracy(False)))
                 
                 
-                recorder.update(epoch, train_los, train_acc, 0, 0)
+                recorder.update(epoch, train_los, train_acc, 0, test_acc)
 
                 # The converge condition 
-                if abs(previous_loss - train_los) < 0.0001:
+                if abs(previous_loss - train_los) < 0.0005:
                     break
                 else:
                     previous_loss = train_los
 
+
+            recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
+
             self.clf = self.clf.module
-        best_train_acc = recorder.max_accuracy(istrain=True)
+        best_train_acc = recorder.max_accuracy(istrain=False)
         return best_train_acc                
 
 

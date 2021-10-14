@@ -21,8 +21,8 @@ import time
 
 
 class Proxy(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(Proxy, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(Proxy, self).__init__(X, Y,  X_te, Y_te, idxs_lb, net, handler, args)
         self.proxy_model = mymodels.__dict__[args.proxy_model](n_class=args.n_class)
 
     def _train(self, epoch, loader_tr, optimizer):
@@ -108,6 +108,7 @@ class Proxy(Strategy):
                 
                 # train one epoch
                 train_acc, train_los = self._train_proxy(epoch, loader_tr, optimizer)
+                test_acc = self.predict(self.X_te, self.Y_te)
 
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
@@ -115,11 +116,11 @@ class Proxy(Strategy):
                 print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
                                                                                    need_time, current_learning_rate
                                                                                    ) \
-                + ' [Best : Train Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(True),
-                                                               1. - recorder.max_accuracy(True)))
+                + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
+                                                               1. - recorder.max_accuracy(False)))
                 
                 
-                recorder.update(epoch, train_los, train_acc, 0, 0)
+                recorder.update(epoch, train_los, train_acc, 0, test_acc)
 
                 # The converge condition 
                 if abs(previous_loss - train_los) < 0.0001:

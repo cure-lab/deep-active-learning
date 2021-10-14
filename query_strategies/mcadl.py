@@ -13,8 +13,8 @@ from sklearn.metrics import pairwise
 # Hunan University
 
 class MCADL(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(MCADL, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(MCADL, self).__init__(X, Y,  X_te, Y_te, idxs_lb, net, handler, args)
         self.alpha_init = 0.9
         self.beta_init = 0.9
         self.last_acc = [0.0]*self.args.n_class

@@ -31,24 +31,29 @@ export CUBLAS_WORKSPACE_CONFIG=:16:8
 # n_epoch=50
 
 # For test use
-dataset=mnist
-model=LeNet
-start=5
-end=100
-step=20
-n_epoch=50
+# dataset=mnist
+# model=LeNet
+# start=5
+# end=25
+# step=5
+# n_epoch=50
 
-# dataset=cifar10
+dataset=cifar10
+model=ResNet18
+start=10
+end=70
+step=5
+n_epoch=200
+
+# dataset=gtsrb
 # model=ResNet18
 # start=10
 # end=70
 # step=5
 # n_epoch=200
 
-# dataset=gtsrb
-
 strategies=(
-            # 'RandomSampling' \
+            'RandomSampling' \
             # 'CoreSet' \
             # 'BadgeSampling' \
             # 'BALDDropout' \
@@ -63,9 +68,9 @@ strategies=(
             # 'uncertainGCN' \
             # 'coreGCN' \
             # 'MCADL' \
-            'ssl_LC' \
-            'ssl_Random' \
-            'ssl_Diff2AugKmeans' \
+            # 'ssl_LC' \
+            # 'ssl_Random' \
+            # 'ssl_Diff2AugKmeans' \
             )
             
 save_path=save/${DATE}/${dataset}
@@ -73,7 +78,8 @@ save_file='main_result.csv'
 
 data_path='/research/dept2/yuli/datasets'
 
-for rand_idx in 1 2 3 4 5
+for rand_idx in 1
+# for rand_idx in 1 2 3 4 5
 do
         for strategy in "${strategies[@]}"
         do
@@ -93,8 +99,8 @@ do
                             --save_path $save_path \
                             --save_file $save_file \
                             --manualSeed $manualSeed \
-                            --data_path $data_path 
+                            --data_path $data_path \
+                            --total
         done
-    # done
 done
 

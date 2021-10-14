@@ -122,8 +122,8 @@ def LossPredLoss(input, target, margin=1.0, reduction='mean'):
     return loss
 
 class LearningLoss(Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(LearningLoss, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y,  X_te, Y_te, idxs_lb, net, handler, args):
+        super(LearningLoss, self).__init__(X, Y,  X_te, Y_te, idxs_lb, net, handler, args)
         global device_global
         device_global = self.device
         
@@ -173,7 +173,7 @@ class LearningLoss(Strategy):
                                             transform=transform), shuffle=True,
                                **self.args.loader_tr_args)
 
-        # n_epoch = self.args.n_epoch']
+        # n_epoch = self.args.n_epoch'
         self.clf = self.net.apply(weight_reset).to(self.device) 
         criterion = nn.CrossEntropyLoss(reduction='none')
         optim_backbone = optim.SGD(self.clf.parameters(), lr=LR,
@@ -191,7 +191,6 @@ class LearningLoss(Strategy):
 
         optimizers = {'backbone': optim_backbone, 'module': optim_module}
         schedulers = {'backbone': sched_backbone, 'module': sched_module}
-        
         
 
         epoch = 1

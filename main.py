@@ -83,7 +83,7 @@ parser.add_argument('--schedule',
                     default=[80, 120],
                     help='Decrease learning rate at these epochs.')
 parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
-parser.add_argument('--lr', type=float, default=0.01, help='learning rate.')
+parser.add_argument('--lr', type=float, default=0.1, help='learning rate.')
 parser.add_argument('--gammas',
                     type=float,
                     nargs='+',
@@ -131,7 +131,7 @@ args_pool = {'mnist':
                                 transforms.Normalize((0.1307,), (0.3081,))]),
                  'transform_te': transforms.Compose([transforms.ToTensor(), 
                                 transforms.Normalize((0.1307,), (0.3081,))]),
-                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
+                 'loader_tr_args':{'batch_size': 128, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
                 },
             'fashionmnist':
@@ -233,6 +233,9 @@ def main():
     n_test = len(Y_te)
 
     # parameters
+    if args.dataset == 'mnist':
+        args.schedule = [30, 40]
+
     args.nEnd =  args.nEnd if args.nEnd != -1 else 100
     args.nQuery = args.nQuery if args.nQuery != -1 else (args.nEnd - args.nStart)
     if args.total:
@@ -267,18 +270,17 @@ def main():
 
     # selection strategy
     if args.strategy == 'ActiveLearningByLearning': # active learning by learning (albl)
-        albl_list = [query_strategies.LeastConfidence(X_tr, Y_tr, idxs_lb, net, handler, args),
-                        query_strategies.CoreSet(X_tr, Y_tr, idxs_lb, net, handler, args)]
-        strategy = query_strategies.ActiveLearningByLearning(X_tr, Y_tr, idxs_lb, net, handler, args, 
+        albl_list = [query_strategies.LeastConfidence(X_tr, Y_tr, X_te, Y_te, idxs_lb, net, handler, args),
+                        query_strategies.CoreSet(X_tr, Y_tr, X_te, Y_te, idxs_lb, net, handler, args)]
+        strategy = query_strategies.ActiveLearningByLearning(X_tr, Y_tr, X_te, Y_te, idxs_lb, net, handler, args, 
                     strategy_list=albl_list, delta=0.1)
     elif args.strategy == 'WAAL': # waal
         test_handler = handler
         train_handler = get_wa_handler(args.dataset)
-        strategy =  query_strategies.WAAL(X_tr, Y_tr, idxs_lb, net, 
+        strategy =  query_strategies.WAAL(X_tr, Y_tr, X_te, Y_te, idxs_lb, net, 
                                             train_handler, test_handler, args)    
     else:
-        strategy = query_strategies.__dict__[args.strategy](X_tr, Y_tr, 
-                                                idxs_lb, net, handler, args=args)
+        strategy = query_strategies.__dict__[args.strategy](X_tr, Y_tr, X_te, Y_te, idxs_lb, net, handler, args)
 
     print_log('Strategy {} successfully loaded...'.format(args.strategy), log)
 

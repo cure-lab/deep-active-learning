@@ -60,8 +60,8 @@ def get_CIFAR10(path):
     return X_tr, Y_tr, X_te, Y_te
 
 def get_GTSRB(path):
-    train_dir = os.path.join(path, 'train')
-    test_dir = os.path.join(path, 'test')
+    train_dir = os.path.join(path, 'gtsrb/train')
+    test_dir = os.path.join(path, 'gtsrb/test')
     train_data = torchvision.datasets.ImageFolder(train_dir)
     test_data = torchvision.datasets.ImageFolder(test_dir)
     X_tr = np.array([np.asarray(datasets.folder.default_loader(s[0])) for s in train_data.samples])

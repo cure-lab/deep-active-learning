@@ -5,6 +5,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.autograd import grad
 from .strategy import Strategy
+from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time, adjust_learning_rate
+
 # The original implenmentation is from: https://github.com/cjshui/WAAL/blob/7104bc0113e7e73218a6d287951642a76d8005df/query_strategies/wasserstein_adversarial.py#L40
 
 
@@ -40,9 +42,9 @@ def gradient_penalty(critic, h_s, h_t, device):
 
 
 class WAAL(Strategy):
-    def __init__(self,X,Y, idxs_lb, net, 
+    def __init__(self,X,Y, X_te, Y_te, idxs_lb, net, 
                 train_handler, test_handler, args):
-        super(WAAL, self).__init__(X, Y, idxs_lb, net, test_handler, args)
+        super(WAAL, self).__init__(X, Y,  X_te, Y_te, idxs_lb, net, test_handler, args)
         """
         :param X:
         :param Y:
@@ -58,6 +60,8 @@ class WAAL(Strategy):
 
         self.X = X
         self.Y = Y
+        self.X_te = X_te
+        self.Y_te = Y_te
         self.idxs_lb  = idxs_lb
         self.net_fea = net.feature_extractor
         self.net_clf = net.linear
@@ -109,10 +113,22 @@ class WAAL(Strategy):
         loader_tr = DataLoader(self.train_handler(self.X[idxs_lb_train],self.Y[idxs_lb_train],self.X[idx_ulb_train],self.Y[idx_ulb_train],
                 transform = transform), shuffle= True, **self.args.loader_tr_args)
 
+        recorder = RecorderMeter(n_epoch)
+        epoch_time = AverageMeter()
         accCurrent = 0.
         accOld = 0.
+        
         for epoch in range(n_epoch):
-            print('==========Inner epoch {:d} ========'.format(epoch))
+            ts = time.time()
+            current_lr_fea, _ = adjust_learning_rate(opt_fea, epoch, self.args.gammas, self.args.schedule, self.args)
+            current_lr_clf, _ = adjust_learning_rate(opt_clf, epoch, self.args.gammas, self.args.schedule, self.args)
+            current_lr_dis, _ = adjust_learning_rate(opt_dis, epoch, self.args.gammas, self.args.schedule, self.args)
+            
+            # Display simulation time
+            need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (n_epoch - epoch))
+            need_time = '[{} Need: {:02d}:{:02d}:{:02d}]'.format(self.args.strategy, need_hour, need_mins, need_secs)
+                
+            # print('==========Inner epoch {:d} ========'.format(epoch))
 
             # setting the training mode in the beginning of EACH epoch
             # (since we need to compute the training accuracy during the epoch, optional)
@@ -204,19 +220,34 @@ class WAAL(Strategy):
                 P = lb_out.max(1)[1]
                 acc += 1.0 * (label_y == P).sum().item() / len(label_y)
                 Total_loss += loss.item()
-                
+
             Total_loss /= n_batch
             acc        /= n_batch
-
-
-            print('Training Loss {:.3f}'.format(Total_loss))
-            print('Training accuracy {:.3f}'.format(acc*100))
+            
+            # test acc
+            test_acc = self.predict(self.X_te, self.Y_te)
+            
+            epoch_time.update(time.time() - ts)
+            recorder.update(epoch, Total_loss, acc, 0, test_acc)
+            # print('Training Loss {:.3f}'.format(Total_loss))
+            # print('Training accuracy {:.3f}'.format(acc*100))
+            print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
+                                                                        need_time, current_lr_fea
+                                                                        ) \
+                + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
+                                                    1. - recorder.max_accuracy(False)))
+    
+    
             accCurrent = acc
-            if abs(accCurrent - accOld) <= 0.0002:
+            if abs(accCurrent - accOld) <= 0.0005:
                 break
             else:
                 accOld = accCurrent
 
+        recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
+        best_train_acc = = recorder.max_accuracy(istrain=False)
+        return best_train_acc
+        
     def predict(self,X,Y):
         print ("start to predict...")
         loader_te = DataLoader(self.test_handler(X, Y, transform=self.args.transform_te),

@@ -37,7 +37,7 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.validation import FLOAT_DTYPES
 from sklearn.metrics.pairwise import rbf_kernel as rbf
-from sklearn.externals.six import string_types
+# from sklearn.externals.six import string_types
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import pairwise_distances
 
