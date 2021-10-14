@@ -245,7 +245,7 @@ class WAAL(Strategy):
                 accOld = accCurrent
 
         recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
-        best_train_acc = = recorder.max_accuracy(istrain=False)
+        best_train_acc = recorder.max_accuracy(istrain=False)
         return best_train_acc
         
     def predict(self,X,Y):

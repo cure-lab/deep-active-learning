@@ -23,14 +23,14 @@ fi
 export CUBLAS_WORKSPACE_CONFIG=:16:8
 
 ########### RUN MAIN.py ###############
-# dataset=mnist
-# model=LeNet
-# start=2
-# end=20
-# step=2
-# n_epoch=50
+dataset=mnist
+model=LeNet
+start=2
+end=20
+step=2
+n_epoch=50
 
-# For test use
+# # For test use
 # dataset=mnist
 # model=LeNet
 # start=5
@@ -38,12 +38,12 @@ export CUBLAS_WORKSPACE_CONFIG=:16:8
 # step=5
 # n_epoch=50
 
-dataset=cifar10
-model=ResNet18
-start=10
-end=70
-step=5
-n_epoch=200
+# dataset=cifar10
+# model=ResNet18
+# start=10
+# end=70
+# step=5
+# n_epoch=150
 
 # dataset=gtsrb
 # model=ResNet18
