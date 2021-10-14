@@ -176,8 +176,7 @@ class LearningLoss(Strategy):
         # n_epoch = self.args.n_epoch'
         self.clf = self.net.apply(weight_reset).to(self.device) 
         criterion = nn.CrossEntropyLoss(reduction='none')
-        optim_backbone = optim.SGD(self.clf.parameters(), lr=LR,
-                                   momentum=MOMENTUM, weight_decay=WDECAY)
+        optim_backbone = optim.SGD(self.clf.parameters(), lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
         sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
 
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
@@ -196,14 +195,15 @@ class LearningLoss(Strategy):
         epoch = 1
         accCurrent = 0.
         while epoch < n_epoch:
-            schedulers['backbone'].step()
+            # schedulers['backbone'].step()
+            current_learning_rate, _ = adjust_learning_rate(optimizers['backbone'], epoch, self.args.gammas, self.args.schedule, self.args)
             schedulers['module'].step()
             accCurrent = self.ll_train(epoch, loader_tr, optimizers, criterion)
             epoch += 1
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
             if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
                 self.clf = self.net.apply(weight_reset)
-                optimizer = optim.Adam(self.clf.parameters(), lr=self.args.lr, weight_decay=0)
+                
 
     def get_uncertainty(self,models, unlabeled_loader):
         models['backbone'].eval()
@@ -238,3 +238,26 @@ class LearningLoss(Strategy):
         arg = np.argsort(uncertainty)
 
         return idxs_unlabeled[arg[:n]]
+
+def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    "Add by YU"
+    lr = args.lr
+    mu = args.momentum
+
+    if args.optimizer != "YF":
+        assert len(gammas) == len(
+            schedule), "length of gammas and schedule should be equal"
+        for (gamma, step) in zip(gammas, schedule):
+            if (epoch >= step):
+                lr = lr * gamma
+            else:
+                break
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+
+    elif args.optimizer == "YF":
+        lr = optimizer._lr
+        mu = optimizer._mu
+
+    return lr, mu
