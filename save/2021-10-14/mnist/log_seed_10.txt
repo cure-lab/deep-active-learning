@@ -1,1 +1,1 @@
-Strategy RandomSampling successfull
+success!

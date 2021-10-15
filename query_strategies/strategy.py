@@ -167,8 +167,8 @@ class Strategy:
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
 
             self.clf = self.clf.module
-        best_train_acc = recorder.max_accuracy(istrain=False)
-        return best_train_acc                
+        best_test_acc = recorder.max_accuracy(istrain=False)
+        return best_test_acc                
 
 
     def predict(self, X, Y):

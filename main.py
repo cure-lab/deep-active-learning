@@ -234,7 +234,7 @@ def main():
 
     # parameters
     if args.dataset == 'mnist':
-        args.schedule = [30, 40]
+        args.schedule = [20, 40]
 
     args.nEnd =  args.nEnd if args.nEnd != -1 else 100
     args.nQuery = args.nQuery if args.nQuery != -1 else (args.nEnd - args.nStart)
@@ -307,13 +307,13 @@ def main():
 
         # update
         strategy.update(idxs_lb)
-        strategy.train(alpha=alpha, n_epoch=args.n_epoch)
+        best_test_acc = strategy.train(alpha=alpha, n_epoch=args.n_epoch)
 
         t_iter = time.time() - ts
         
         # round accuracy
-        test_acc = strategy.predict(X_te, Y_te)
-        acc[rd] = test_acc
+        # test_acc = strategy.predict(X_te, Y_te)
+        acc[rd] = best_test_acc
         print_log(str(sum(idxs_lb)) + '\t' + 'testing accuracy {}'.format(acc[rd]), log)
 
         print_log("logging...", log)
