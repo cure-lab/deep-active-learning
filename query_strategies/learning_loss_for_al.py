@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import numpy as np
 from .strategy import Strategy
 
-
+from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time
 
 # Torch
 import torch
@@ -122,8 +122,8 @@ def LossPredLoss(input, target, margin=1.0, reduction='mean'):
     return loss
 
 class LearningLoss(Strategy):
-    def __init__(self, X, Y,  X_te, Y_te, idxs_lb, net, handler, args):
-        super(LearningLoss, self).__init__(X, Y,  X_te, Y_te, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(LearningLoss, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
         global device_global
         device_global = self.device
         
@@ -133,6 +133,7 @@ class LearningLoss(Strategy):
         self.clf.train()
         self.loss_module.train()
         accFinal = 0.
+        accLoss = 0.
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
             x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
             scores, e1, features = self.clf(x,intermediate = True)
@@ -143,7 +144,7 @@ class LearningLoss(Strategy):
                     feature = feature.detach()
             pred_loss = self.loss_module(features)
             pred_loss = pred_loss.view(pred_loss.size(0))
-
+            
             m_backbone_loss = torch.sum(target_loss) / target_loss.size(0)
             m_module_loss = LossPredLoss(pred_loss, target_loss, margin=MARGIN)
             loss = m_backbone_loss + WEIGHT * m_module_loss
@@ -157,10 +158,10 @@ class LearningLoss(Strategy):
 
 
             accFinal += torch.sum((torch.max(scores,1)[1] == y).float()).data.item()
-
+            accLoss += loss.item()
             # clamp gradients, just in case
             for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
-        return accFinal / len(loader_tr.dataset.X)
+        return accFinal / len(loader_tr.dataset.X), accLoss
 
     def train(self,alpha=0, n_epoch=80):
         def weight_reset(m):
@@ -173,12 +174,12 @@ class LearningLoss(Strategy):
                                             transform=transform), shuffle=True,
                                **self.args.loader_tr_args)
 
-        # n_epoch = self.args.n_epoch'
+        # n_epoch = self.args.n_epoch']
         self.clf = self.net.apply(weight_reset).to(self.device) 
         criterion = nn.CrossEntropyLoss(reduction='none')
         optim_backbone = optim.SGD(self.clf.parameters(), lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
-        sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
-
+        # sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
+        recorder = RecorderMeter(n_epoch)
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
             x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
             scores, e1, features = self.clf(x,intermediate = True)
@@ -189,21 +190,25 @@ class LearningLoss(Strategy):
         sched_module = lr_scheduler.MultiStepLR(optim_module, milestones=MILESTONES)
 
         optimizers = {'backbone': optim_backbone, 'module': optim_module}
-        schedulers = {'backbone': sched_backbone, 'module': sched_module}
+        schedulers = {'module': sched_module}
+        
         
 
         epoch = 1
         accCurrent = 0.
         while epoch < n_epoch:
             # schedulers['backbone'].step()
+            accCurrent,accLoss = self.ll_train(epoch, loader_tr, optimizers, criterion)
+            test_acc= self.predict(self.X_te, self.Y_te)
+            recorder.update(epoch, accLoss, accCurrent, 0, test_acc)
+            epoch += 1
             current_learning_rate, _ = adjust_learning_rate(optimizers['backbone'], epoch, self.args.gammas, self.args.schedule, self.args)
             schedulers['module'].step()
-            accCurrent = self.ll_train(epoch, loader_tr, optimizers, criterion)
-            epoch += 1
-            print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
+            print(str(epoch) + ' training accuracy: ' + str(accCurrent),'lr',current_learning_rate, flush=True)
             if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
                 self.clf = self.net.apply(weight_reset)
-                
+        
+        return recorder.max_accuracy(istrain=False)
 
     def get_uncertainty(self,models, unlabeled_loader):
         models['backbone'].eval()
