@@ -255,6 +255,7 @@ class semi_Strategy:
         epoch = 0 
         train_acc = 0.
         previous_loss = 0.
+       
         if idxs_train.shape[0] != 0:
             transform = self.args.transform_tr if not self.pretrained else None
 
@@ -292,8 +293,8 @@ class semi_Strategy:
                                                                1. - recorder.max_accuracy(True)), self.args.log)
                 
                 
-                recorder.update(epoch, train_los, train_acc, 0, 0)
-
+                test_acc = self.predict(self.X_te, self.Y_te)
+                recorder.update(epoch, train_los, train_acc, 0, test_acc)
                 # The converge condition 
                 if abs(previous_loss - train_los) < 0.0001:
                     break
@@ -301,8 +302,9 @@ class semi_Strategy:
                     previous_loss = train_los
 
             self.clf = self.clf.module
-        best_train_acc = recorder.max_accuracy(istrain=True)
-        return best_train_acc                
+        
+        best_test_acc = recorder.max_accuracy(istrain=False)
+        return best_test_acc                
 
 
     def predict(self, X, Y):
