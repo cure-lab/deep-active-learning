@@ -21,6 +21,7 @@ import copy
 import torch.nn.functional as F
 import torch.nn.init as init
 from torch.autograd import Variable
+from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time
 
 class View(nn.Module):
     def __init__(self, size):
@@ -408,12 +409,11 @@ class VAAL(Strategy):
                         labeled_imgs = labeled_imgs.to(device)
                         unlabeled_imgs = unlabeled_imgs.to(device)
                         labels = labels.to(device)
-
+                
             if batch_idx % 10 == 0:
-                print('Current training iteration: {}'.format(batch_idx))
-                # print('Current task model loss: {:.4f}'.format(task_loss.item()))
                 print('Current vae model loss: {:.4f}'.format(total_vae_loss.item()))
                 print('Current discriminator model loss: {:.4f}'.format(dsc_loss.item()))
+
         return accFinal / len(loader_tr.dataset.X), total_vae_loss.item() + dsc_loss.item() + loss.item()
 
     def train(self, alpha=0, n_epoch=80):
@@ -453,20 +453,24 @@ class VAAL(Strategy):
                                             transform=transform), shuffle=True,
                                **self.args.loader_tr_args)
 
-        epoch = 1
+        epoch = 0
         accCurrent = 0.
         lossOld = 0.
+        recorder = RecorderMeter(n_epoch)
         while epoch < n_epoch:
             current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule, self.args)
             accCurrent, train_loss = self.vaal_train(epoch, loader_tr, optimizer, labeled_data, unlabeled_data, optim_vae, optim_discriminator)
-            epoch += 1
+            
             print(str(epoch) + ' training accuracy: ' + str(accCurrent), flush=True)
-            #
+            test_acc = self.predict(self.X_te, self.Y_te)
+            recorder.update(epoch, train_loss, accCurrent, 0, test_acc)
+            epoch += 1
             # if abs(train_loss-lossOld) < 0.001:  # reset if not converging
             #     break
             # else: 
             #     lossOld = train_loss
-
+        best_test_acc = recorder.max_accuracy(istrain=False)
+        return best_test_acc    
 
     def query(self, n):
         self.sampler = AdversarySampler(n)
@@ -480,7 +484,7 @@ class VAAL(Strategy):
                                              unlabeled_loader,
                                              self.cuda)
 
-        return querry_indices
+        return idxs_unlabeled[querry_indices]
 
 def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
