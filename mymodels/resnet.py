@@ -120,7 +120,7 @@ class resnet_dis(nn.Module):
         return x
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, n_class=10, bayesian=False):
+    def __init__(self, block, num_blocks, n_class=10):
         super(ResNet, self).__init__()
         # self.in_planes = 16
         self.embDim = 128 * block.expansion
@@ -138,7 +138,7 @@ class ResNet(nn.Module):
         self.feature_extractor = resnet_fea(block, num_blocks)
         self.linear = resnet_clf(block, n_class)
         self.discriminator = resnet_dis(self.embDim)
-        self.bayesian = bayesian
+        # self.bayesian = bayesian
 
     # def _make_layer(self, block, planes, num_blocks, stride):
     #     strides = [stride] + [1]*(num_blocks-1)
@@ -162,7 +162,7 @@ class ResNet(nn.Module):
     def forward(self, x, intermediate=False):
         out, in_values = self.feature_extractor(x)
         # apply dropout to approximate the bayesian networks
-        out = F.dropout(out, p=0.2, training=self.bayesian)
+        out = F.dropout(out, p=0.2, training=self.training)
         # emb = emb.view(emb.size(0), -1)
         out, emb = self.linear(out)
         if intermediate == True:
@@ -174,20 +174,20 @@ class ResNet(nn.Module):
         return self.embDim
 
 
-def ResNet18(n_class, bayesian):
-    return ResNet(BasicBlock, [2,2,2,2], n_class=n_class, bayesian=bayesian)
+def ResNet18(n_class):
+    return ResNet(BasicBlock, [2,2,2,2], n_class=n_class)
 
-def ResNet34(n_class, bayesian):
-    return ResNet(BasicBlock, [3,4,6,3], n_class=n_class, bayesian=bayesian)
+def ResNet34(n_class):
+    return ResNet(BasicBlock, [3,4,6,3], n_class=n_class)
 
-def ResNet50(n_class, bayesian):
-    return ResNet(Bottleneck, [3,4,6,3], n_class=n_class, bayesian=bayesian)
+def ResNet50(n_class):
+    return ResNet(Bottleneck, [3,4,6,3], n_class=n_class)
 
-def ResNet101(n_class, bayesian):
-    return ResNet(Bottleneck, [3,4,23,3], n_class=n_class, bayesian=bayesian)
+def ResNet101(n_class):
+    return ResNet(Bottleneck, [3,4,23,3], n_class=n_class)
 
-def ResNet152(n_class, bayesian):
-    return ResNet(Bottleneck, [3,8,36,3], n_class=n_class, bayesian=bayesian)
+def ResNet152(n_class):
+    return ResNet(Bottleneck, [3,8,36,3], n_class=n_class)
 
 
 def test():

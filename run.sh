@@ -30,35 +30,28 @@ export CUBLAS_WORKSPACE_CONFIG=:16:8
 # step=2
 # n_epoch=50
 
-# # For test use
-# dataset=mnist
-# model=LeNet
-# start=5
-# end=25
-# step=5
-# n_epoch=50
 
-# dataset=cifar10
+dataset=cifar10
+model=ResNet18
+start=10
+end=70
+step=5
+n_epoch=150
+
+# dataset=gtsrb
 # model=ResNet18
 # start=10
 # end=70
 # step=5
 # n_epoch=150
 
-dataset=gtsrb
-model=ResNet18
-start=10
-end=70
-step=5
-n_epoch=200
-
 strategies=(
-            'RandomSampling' \
+            # 'RandomSampling' \
             # 'CoreSet' \
             # 'BadgeSampling' \
-            # 'BALDDropout' \
-            # 'LeastConfidence' \
-            # 'KMeansSampling' \
+            'BALDDropout' \
+            'LeastConfidence' \
+            'KMeansSampling' \
             # 'AdversarialBIM' \
             # 'WAAL' \
             # 'ActiveLearningByLearning' \
@@ -99,8 +92,7 @@ do
                             --save_path $save_path \
                             --save_file $save_file \
                             --manualSeed $manualSeed \
-                            --data_path $data_path \
-                            --total
+                            --data_path $data_path 
         done
 done
 

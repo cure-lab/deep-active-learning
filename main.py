@@ -260,13 +260,12 @@ def main():
 
 
     # load specified network
-    bayesian = True if 'Dropout' in args.strategy else False
     if args.strategy == 'ensemble':
         net = [mymodels.__dict__[args.model](n_class=args.n_class) for _ in range(args.n_ensembles)]
     elif 'ssl_' in args.strategy:
-        net = [mymodels.__dict__[args.model](n_class=args.n_class, bayesian=bayesian) for _ in range(2)]
+        net = [mymodels.__dict__[args.model](n_class=args.n_class) for _ in range(2)]
     else:
-        net = mymodels.__dict__[args.model](n_class=args.n_class, bayesian=bayesian)
+        net = mymodels.__dict__[args.model](n_class=args.n_class)
 
     # selection strategy
     if args.strategy == 'ActiveLearningByLearning': # active learning by learning (albl)
