@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torchvision import transforms
 
 import numpy as np
 import time
@@ -16,6 +17,9 @@ import PIL.ImageEnhance
 import PIL.ImageDraw
 from PIL import Image
 
+cifar10_mean = (0.4914, 0.4822, 0.4465)
+cifar10_std = (0.2471, 0.2435, 0.2616)
+
 
 class UDALoss(nn.Module):
     def __init__(self):
@@ -24,13 +28,15 @@ class UDALoss(nn.Module):
     def forward(self, model, x, x_h):
         batchsize = x.shape[0]
         with torch.no_grad():
-            pred_x = F.softmax(model(x), dim=1)
-        pred_x_h = F.log_softmax(model(x_h), dim=1)
+            output, aux = model(x)
+            pred_x = F.softmax(output, dim=1)
+        output, aux = model(x_h)
+        pred_x_h = F.log_softmax(output, dim=1)
         lds = F.kl_div(pred_x_h, pred_x, None, None, reduction='sum') / batchsize
         return lds
 
 
-class TransformAug(object):
+class RandAugment(object):
     # TO DO: implementation of the data augmentation function
 
     def AutoContrast(self, img, **kwarg):
@@ -103,12 +109,11 @@ class TransformAug(object):
         v = int(v * max_v / 10)
         return PIL.ImageOps.solarize(img, 256 - v)
 
-    def __init__(self, n, m, transform):
-        self.transform = transform
+    def __init__(self, n, m, resample_mode=PIL.Image.BILINEAR):
         assert n >= 1
         assert m >= 1
         global RESAMPLE_MODE
-        RESAMPLE_MODE = PIL.Image.BILINEAR
+        RESAMPLE_MODE = resample_mode
         self.n = n
         self.m = m
         self.augment_pool = [(self.AutoContrast, None, None),
@@ -127,14 +132,37 @@ class TransformAug(object):
             ]
 
     def __call__(self, inp):
-        out1 = self.transform(inp)
+        # out1 = self.transform(inp)
         # TO DO: to fit the augmentation transformation
         ops = random.choices(self.augment_pool, k=self.n)
         for op, max_v, bias in ops:
             prob = np.random.uniform(0.2, 0.8)
             if random.random() + prob >= 1:
-                out2 = op(inp, v=self.m, max_v=max_v, bias=bias)
-        return out1, out2
+                inp = op(inp, v=self.m, max_v=max_v, bias=bias)
+        return inp
+
+
+class TransformAug(object):
+    def __init__(self, mean, std):
+        self.weak = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(size=32,
+                                  padding=int(32 * 0.125),
+                                  padding_mode='reflect')])
+        self.strong = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(size=32,
+                                  padding=int(32 * 0.125),
+                                  padding_mode='reflect'),
+            RandAugment(n=2, m=10)])
+        self.normalize = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std)])
+
+    def __call__(self, inp):
+        weak = self.weak(inp)
+        strong = self.strong(inp)
+        return self.normalize(weak), self.normalize(strong)
 
 
 class ssl_UDA(Strategy):
@@ -156,7 +184,6 @@ class ssl_UDA(Strategy):
         # Notice: the returned index should be referenced to the whole training set
         return inds[np.random.permutation(len(inds))][:n]
 
-
     def _train(self, epoch, loader_labeled, loader_unlabeled, optimizer, train_iteration):
         self.clf.train()
         correct = 0.
@@ -175,10 +202,11 @@ class ssl_UDA(Strategy):
             inputs_x, targets_x, _ = labeled_train_iter.next()
             inputs_x = inputs_x.to(self.device)
             targets_x = targets_x.to(self.device)
-            output, e1 = self.clf(inputs_x.cuda())
-            Loss_sup = nn.CrossEntropyLoss(output, targets_x)
+            output, e1 = self.clf(inputs_x)
+            cross_entropy = nn.CrossEntropyLoss()
+            Loss_sup = cross_entropy(output, targets_x)
 
-            correct += torch.sum((torch.max(output, 1)[1] == targets_x.cuda()).float()).data.item()
+            correct += torch.sum((torch.max(output, 1)[1] == targets_x).float()).data.item()
             total += inputs_x.size(0)
 
             # TO DO, calculate the loss of the unlabeled data
@@ -187,7 +215,9 @@ class ssl_UDA(Strategy):
             inputs_u2 = inputs_u2.to(self.device)
             outputs_u, _ = self.clf(inputs_u)
             outputs_u2, _ = self.clf(inputs_u2)
-            Loss_unsup = UDALoss(self.clf, inputs_u, inputs_u2)
+
+            uda_loss = UDALoss()
+            Loss_unsup = uda_loss(self.clf, inputs_u, inputs_u2)
 
             # total loss
             loss = Loss_sup + Loss_unsup
@@ -217,7 +247,7 @@ class ssl_UDA(Strategy):
         def weight_reset(m):
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear): 
                 m.reset_parameters()
-        self.clf =  self.net.apply(weight_reset)
+        self.clf = self.clf.apply(weight_reset)
         self.clf = nn.DataParallel(self.clf).to(self.device)
 
         # prepare the training parameters
@@ -245,7 +275,7 @@ class ssl_UDA(Strategy):
                                     **self.args.loader_tr_args)
             loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled], 
                                     torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), 
-                                    transform=TransformAug(transform)), shuffle=True, 
+                                    transform=TransformAug(mean=cifar10_mean, std=cifar10_std)), shuffle=True,
                                     **self.args.loader_tr_args)
         
             train_iteration = max(len(loader_labeled.dataset.X),
