@@ -186,6 +186,7 @@ class ssl_UDA(Strategy):
 
     def _train(self, epoch, loader_labeled, loader_unlabeled, optimizer, train_iteration):
         self.clf.train()
+        self.clf = nn.DataParallel(self.clf).to(self.device)
         correct = 0.
         total = 0.
         train_loss = 0.
@@ -199,7 +200,11 @@ class ssl_UDA(Strategy):
         for batch_idx in range(int(train_iteration)):
 
             # TO DO, calculate the loss of the labeled data
-            inputs_x, targets_x, _ = labeled_train_iter.next()
+            try:
+                inputs_x, targets_x, _ = labeled_train_iter.next()
+            except StopIteration:
+                batch_iterator = iter(loader_labeled)
+                inputs_x, targets_x, _ = batch_iterator.next()
             inputs_x = inputs_x.to(self.device)
             targets_x = targets_x.to(self.device)
             output, e1 = self.clf(inputs_x)
@@ -210,7 +215,11 @@ class ssl_UDA(Strategy):
             total += inputs_x.size(0)
 
             # TO DO, calculate the loss of the unlabeled data
-            (inputs_u, inputs_u2), _, _ = unlabeled_train_iter.next()
+            try:
+                (inputs_u, inputs_u2), _, _ = unlabeled_train_iter.next()
+            except StopIteration:
+                batch_iterator = iter(unlabeled_train_iter)
+                (inputs_u, inputs_u2), _, _ = batch_iterator.next()
             inputs_u = inputs_u.to(self.device)
             inputs_u2 = inputs_u2.to(self.device)
             outputs_u, _ = self.clf(inputs_u)
