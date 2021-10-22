@@ -180,7 +180,7 @@ class coreGCN(Strategy):
         ind_idxs_lb = list(np.nonzero(self.idxs_lb)[0])
 
         features = self.get_embedding(self.X[subset+ind_idxs_lb], self.Y[subset+ind_idxs_lb])
-        features = functional.normalize(features)
+        features = functional.normalize(features).to(self.device)
         adj = aff_to_adj(features).to(self.device)
 
         binary_labels = torch.cat((torch.zeros([SUBSET, 1]),(torch.ones([len(ind_idxs_lb),1]))),0)

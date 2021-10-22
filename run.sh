@@ -23,20 +23,20 @@ fi
 export CUBLAS_WORKSPACE_CONFIG=:16:8
 
 ########### RUN MAIN.py ###############
-# dataset=mnist
-# model=LeNet
-# start=2
-# end=20
-# step=2
-# n_epoch=50
+dataset=mnist
+model=LeNet
+start=2
+end=20
+step=2
+n_epoch=50
 
 
-dataset=cifar10
-model=ResNet18
-start=10
-end=70
-step=5
-n_epoch=150
+# dataset=cifar10
+# model=ResNet18
+# start=10
+# end=70
+# step=5
+# n_epoch=150
 
 # dataset=gtsrb
 # model=ResNet18
@@ -49,9 +49,9 @@ strategies=(
             # 'RandomSampling' \
             # 'CoreSet' \
             # 'BadgeSampling' \
-            'BALDDropout' \
-            'LeastConfidence' \
-            'KMeansSampling' \
+            # 'BALDDropout' \
+            # 'LeastConfidence' \
+            # 'KMeansSampling' \
             # 'AdversarialBIM' \
             # 'WAAL' \
             # 'ActiveLearningByLearning' \
@@ -71,7 +71,7 @@ save_file='main_result.csv'
 
 data_path='/research/dept2/yuli/datasets'
 
-for rand_idx in 1
+for rand_idx in 1 2 3 4 5
 # for rand_idx in 1 2 3 4 5
 do
         for strategy in "${strategies[@]}"
