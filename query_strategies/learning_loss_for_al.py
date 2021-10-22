@@ -82,7 +82,7 @@ class LossNet(nn.Module):
             self.GAP_list.append(nn.AvgPool2d(feature_sizes[num]).to(device_global) )
             self.FC_list.append(nn.Linear(num_channels[num], interm_dim).to(device_global))
 
-        self.linear = nn.Linear(feature_sizes[-1] * interm_dim, 1)
+        self.linear = nn.Linear(self.num_layers * interm_dim, 1)
 
 
     def forward(self, features):
