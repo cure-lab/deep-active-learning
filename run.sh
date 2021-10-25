@@ -52,11 +52,11 @@ strategies=(
             # 'BALDDropout' \
             # 'LeastConfidence' \
             # 'KMeansSampling' \
-            # 'AdversarialBIM' \
+            'AdversarialBIM' \
             # 'WAAL' \
-            # 'ActiveLearningByLearning' \
-            # 'VAAL' \
-            # 'LearningLoss' \
+            'ActiveLearningByLearning' \
+            'VAAL' \
+            'LearningLoss' \
             # 'ClusterMarginSampling' \
             # 'uncertainGCN' \
             # 'coreGCN' \
