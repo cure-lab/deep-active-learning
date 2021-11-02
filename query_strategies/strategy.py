@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader
 from copy import deepcopy
 from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time, adjust_learning_rate
 import time
-
-
+from torchvision.utils import save_image
+from tqdm import tqdm
 
 class Strategy:
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
@@ -31,9 +31,12 @@ class Strategy:
             self.preprocessing = args.preprocessing
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         # self.device = torch.device('cuda', args.d) if torch.cuda.is_available() else 'cpu'
-
-        self.clf = net.to(self.device)
-        self.net = net.to(self.device)
+        if isinstance(net,list):
+            self.clf = [net_.to(self.device) for net_ in net]
+            self.net = [net_.to(self.device) for net_ in net]
+        else:
+            self.clf = net.to(self.device)
+            self.net = net.to(self.device)
 
         if self.pretrained: # use the latent vector of the inputs as training data
             self.X_p = self.get_pretrained_embedding(X, Y)
@@ -132,7 +135,6 @@ class Strategy:
                                     worker_init_fn=self.seed_worker,
                                     generator=self.g,
                                     **self.args.loader_tr_args)
-
             for epoch in range(n_epoch):
                 ts = time.time()
                 current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule, self.args)
@@ -144,10 +146,9 @@ class Strategy:
                 # train one epoch
                 train_acc, train_los = self._train(epoch, loader_tr, optimizer)
                 test_acc = self.predict(self.X_te, self.Y_te)
-
+                self.get_tta_values()
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
-
                 print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
                                                                                    need_time, current_learning_rate
                                                                                    ) \
@@ -165,8 +166,9 @@ class Strategy:
 
 
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
-
             self.clf = self.clf.module
+            self.save_tta_values(self.get_tta_values())
+
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
 
@@ -330,4 +332,95 @@ class Strategy:
             return torch.Tensor(embedding)
 
 
+    def get_tta_values(self):    
+        # apply multiple data augmentation and calculate the variance
+        # TO BE TESTED
+        from torchvision.utils import make_grid
 
+        n_class, n_iters = 10, 32 
+        tta_values = []
+        augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
+        augtest_loader = torch.utils.data.DataLoader(
+                        augset,
+                        batch_size=1,
+                        shuffle=False,
+                        num_workers=self.args.loader_te_args['num_workers'],
+                        pin_memory=True)
+        self.clf.eval()
+        for i, all_images in tqdm(enumerate(augtest_loader)):
+            # print("progress {}/{}".format(i, len(self.X_te)))
+            all_logits, _ = self.clf(torch.cat(all_images, 0).to(self.device))
+            preds = torch.nn.functional.softmax(all_logits.detach().cpu(), dim=1)
+            prob = preds.mean(0)
+            entropy = (-prob*np.log2(prob)).sum()
+            tta_values.append(entropy)
+            # variance = preds.var(0).sum()
+            # tta_values.append(variance)
+            if i % 1000 == 0:
+                
+                # print ("size: ", len(all_images))
+                # print ("tensor size: ", torch.cat(all_images, 0).shape)
+                grid = make_grid(torch.cat(all_images, 0), nrow=len(all_images), padding=2)
+                save_image(grid, filename=os.path.join(self.args.save_path, 'img_augmentation_{}.png'.format(i)))
+
+        print('TTA_values:', np.array(tta_values).sum())
+        return np.array(tta_values).sum()
+    
+    def save_tta_values(self,tta):
+        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        f.write(str(labeled)+ '   ' + str(tta))
+        f.close()
+
+class AugMixDataset(torch.utils.data.Dataset):
+    """Dataset wrapper to perform AugMix augmentation."""
+    def __init__(self, dataset, preprocess, n_iters, no_jsd=False):
+        self.dataset = dataset
+        self.preprocess = preprocess
+        self.no_jsd = no_jsd
+        self.n_iters = n_iters
+
+    def __getitem__(self, i):
+        x = self.dataset[i]
+        if self.no_jsd:
+            return aug(x, self.preprocess)
+        else:
+            aug_image = [aug(x, self.preprocess) for i in range(self.n_iters)]
+            im_tuple = [self.preprocess(x)] + aug_image
+            return im_tuple
+
+    def __len__(self):
+        return len(self.dataset)
+
+def aug(image, preprocess):
+    """Perform AugMix augmentations and compute mixture.
+    Args:
+        image: PIL.Image input image
+        preprocess: Preprocessing function which should return a torch tensor.
+    Returns:
+        mixed: Augmented and mixed image.
+    """
+    from . import augmentations
+    from PIL import Image
+    image = Image.fromarray(image)
+    aug_list = augmentations.augmentations
+    # if args.all_ops:
+    #     aug_list = augmentations.augmentations_all
+    mixture_width, mixture_depth = 1, -1
+    aug_severity = 3
+    ws = np.float32(np.random.dirichlet([1] * mixture_width))
+    m = np.float32(np.random.beta(1, 1))
+
+    mix = torch.zeros_like(preprocess(image))
+    for i in range(mixture_width):
+        image_aug = image.copy()
+        depth = mixture_depth if mixture_depth > 0 else np.random.randint(
+                1, 4)
+        for _ in range(depth):
+            op = np.random.choice(aug_list)
+            image_aug = op(image_aug, aug_severity)
+        # Preprocessing commutes since all coefficients are convex
+        mix += ws[i] * preprocess(image_aug)
+
+    mixed = (1 - m) * preprocess(image) + m * mix
+    return np.array(mixed)
