@@ -11,6 +11,9 @@ from torch.utils.data import DataLoader
 from copy import deepcopy
 from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time
 import time
+import sys, os
+from torchvision.utils import save_image
+from tqdm import tqdm
 
 torch.backends.cudnn.benchmark = True
 
@@ -255,21 +258,25 @@ class semi_Strategy:
         epoch = 0 
         train_acc = 0.
         previous_loss = 0.
-       
+        train_iteration = len(self.X) / self.args.loader_tr_args['batch_size']
+        
         if idxs_train.shape[0] != 0:
             transform = self.args.transform_tr if not self.pretrained else None
 
             loader_labeled = DataLoader(self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train], 
                                     torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
                                     transform=transform), shuffle=True, 
+                                    pin_memory=True,
+                                    # sampler = DistributedSampler(train_data),
+                                    worker_init_fn=self.seed_worker,
                                     **self.args.loader_tr_args)
             loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled], 
                                     torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), 
                                     transform=TransformTwice(transform)), shuffle=True, 
                                     **self.args.loader_tr_args)
             # train_iteration = max(len(loader_labeled.dataset.X),len(loader_unlabeled.dataset.X))/self.args.loader_tr_args['batch_size']
-            train_iteration = len(self.X) / self.args.loader_tr_args['batch_size']
-            print('X',len(self.X))
+            
+            # print('X',len(self.X))
             # print('has:', n_epoch)
             for epoch in range(n_epoch):
                 ts = time.time()
@@ -302,7 +309,8 @@ class semi_Strategy:
                     previous_loss = train_los
 
             self.clf = self.clf.module
-        
+            self.save_tta_values(self.get_tta_values())
+
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
 
@@ -396,6 +404,16 @@ class semi_Strategy:
                     probs[i][idxs] += F.softmax(out, dim=1).cpu().data
             return probs
 
+    def seed_worker(self, worker_id):
+        """
+        To preserve reproducibility when num_workers > 1
+        """
+        import random
+        # https://pytorch.org/docs/stable/notes/randomness.html
+        worker_seed = torch.initial_seed() % 2**32
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+
     def get_embedding(self, X, Y):
         """ get last layer embedding from current model"""
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
@@ -465,6 +483,98 @@ class semi_Strategy:
                             embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (-1 * batchProbs[j][c])
             return torch.Tensor(embedding)
 
+    def get_tta_values(self):    
+        # apply multiple data augmentation and calculate the variance
+        # TO BE TESTED
+        from torchvision.utils import make_grid
+
+        n_class, n_iters = 10, 32 
+        tta_values = []
+        augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
+        augtest_loader = torch.utils.data.DataLoader(
+                        augset,
+                        batch_size=1,
+                        shuffle=False,
+                        num_workers=self.args.loader_te_args['num_workers'],
+                        pin_memory=True)
+        self.ema_model.eval()
+        for i, all_images in tqdm(enumerate(augtest_loader)):
+            # print("progress {}/{}".format(i, len(self.X_te)))
+            all_logits, _ = self.ema_model(torch.cat(all_images, 0).to(self.device))
+            preds = torch.nn.functional.softmax(all_logits.detach().cpu(), dim=1)
+            prob = preds.mean(0)
+            entropy = (-prob*np.log2(prob)).sum()
+            tta_values.append(entropy)
+            # variance = preds.var(0).sum()
+            # tta_values.append(variance)
+            if i % 1000 == 0:
+                
+                # print ("size: ", len(all_images))
+                # print ("tensor size: ", torch.cat(all_images, 0).shape)
+                grid = make_grid(torch.cat(all_images, 0), nrow=len(all_images), padding=2)
+                save_image(grid, filename=os.path.join(self.args.save_path, 'img_augmentation_{}.png'.format(i)))
+
+        print('TTA_values:', np.array(tta_values).sum())
+        return np.array(tta_values).sum()
+    
+    def save_tta_values(self,tta):
+        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        f.write(str(labeled)+ '   ' + str(tta))
+        f.close()
+
+class AugMixDataset(torch.utils.data.Dataset):
+    """Dataset wrapper to perform AugMix augmentation."""
+    def __init__(self, dataset, preprocess, n_iters, no_jsd=False):
+        self.dataset = dataset
+        self.preprocess = preprocess
+        self.no_jsd = no_jsd
+        self.n_iters = n_iters
+
+    def __getitem__(self, i):
+        x = self.dataset[i]
+        if self.no_jsd:
+            return aug(x, self.preprocess)
+        else:
+            aug_image = [aug(x, self.preprocess) for i in range(self.n_iters)]
+            im_tuple = [self.preprocess(x)] + aug_image
+            return im_tuple
+
+    def __len__(self):
+        return len(self.dataset)
+
+def aug(image, preprocess):
+    """Perform AugMix augmentations and compute mixture.
+    Args:
+        image: PIL.Image input image
+        preprocess: Preprocessing function which should return a torch tensor.
+    Returns:
+        mixed: Augmented and mixed image.
+    """
+    from . import augmentations
+    from PIL import Image
+    image = Image.fromarray(image)
+    aug_list = augmentations.augmentations
+    # if args.all_ops:
+    #     aug_list = augmentations.augmentations_all
+    mixture_width, mixture_depth = 1, -1
+    aug_severity = 3
+    ws = np.float32(np.random.dirichlet([1] * mixture_width))
+    m = np.float32(np.random.beta(1, 1))
+
+    mix = torch.zeros_like(preprocess(image))
+    for i in range(mixture_width):
+        image_aug = image.copy()
+        depth = mixture_depth if mixture_depth > 0 else np.random.randint(
+                1, 4)
+        for _ in range(depth):
+            op = np.random.choice(aug_list)
+            image_aug = op(image_aug, aug_severity)
+        # Preprocessing commutes since all coefficients are convex
+        mix += ws[i] * preprocess(image_aug)
+
+    mixed = (1 - m) * preprocess(image) + m * mix
+    return np.array(mixed)
 
 def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
