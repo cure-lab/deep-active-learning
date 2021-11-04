@@ -166,7 +166,7 @@ class Strategy:
                 self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
-            # self.save_tta_values(self.get_tta_values())
+            self.save_tta_values(self.get_tta_values())
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
