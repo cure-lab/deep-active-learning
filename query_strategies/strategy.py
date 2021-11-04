@@ -146,7 +146,6 @@ class Strategy:
                 # train one epoch
                 train_acc, train_los = self._train(epoch, loader_tr, optimizer)
                 test_acc = self.predict(self.X_te, self.Y_te)
-                self.get_tta_values()
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
                 print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
@@ -163,11 +162,11 @@ class Strategy:
                     break
                 else:
                     previous_loss = train_los
-
-
+            if self.args.save_model:
+                self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
-            self.save_tta_values(self.get_tta_values())
+            # self.save_tta_values(self.get_tta_values())
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
@@ -369,9 +368,26 @@ class Strategy:
     def save_tta_values(self,tta):
         f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        f.write(str(labeled)+ '   ' + str(tta))
+        f.write(str(labeled)+ '   ' + str(tta)+ '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
         f.close()
+    
+    def save_model(self):
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(int(100*labeled/len(self.X)))
+        torch.save(self.clf, os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'.pkl'))
+        print('save to ',os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_parameter.pkl'))
 
+    def load_model(self):
+        self.clf = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+str(self.args.load_model)+'.pkl'))
+
+    def tta_test_from_load_model(self):
+        if self.args.load_model != 0:
+            self.load_model()
+        test_acc = self.predict(self.X_te, self.Y_te)
+        tta = self.get_tta_values()
+        print(test_acc, tta)
+        
 class AugMixDataset(torch.utils.data.Dataset):
     """Dataset wrapper to perform AugMix augmentation."""
     def __init__(self, dataset, preprocess, n_iters, no_jsd=False):
