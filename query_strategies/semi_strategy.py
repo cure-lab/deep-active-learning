@@ -310,6 +310,8 @@ class semi_Strategy:
 
             self.clf = self.clf.module
             self.save_tta_values(self.get_tta_values())
+            if self.args.save_model:
+                self.save_model()
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
@@ -490,7 +492,7 @@ class semi_Strategy:
 
         n_class, n_iters = 10, 32 
         tta_values = []
-        augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
+        augset = AugMixDataset(self.X, self.args.transform_te, n_iters) 
         augtest_loader = torch.utils.data.DataLoader(
                         augset,
                         batch_size=1,
@@ -522,6 +524,23 @@ class semi_Strategy:
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
         f.write(str(labeled)+ '   ' + str(tta))
         f.close()
+    
+    
+    def save_model(self):
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(int(100*labeled/len(self.X)))
+        torch.save(self.ema_model, os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'.pkl'))
+        print('save to ',os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'.pkl'))
+
+    def load_model(self):
+        self.ema_model = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+str(self.args.load_model)+'.pkl'))
+
+    def tta_test_from_load_model(self):
+        if self.args.load_model != 0:
+            self.load_model()
+        test_acc = self.predict(self.X_te, self.Y_te)
+        tta = self.get_tta_values()
+        print(test_acc, tta)
 
 class AugMixDataset(torch.utils.data.Dataset):
     """Dataset wrapper to perform AugMix augmentation."""
