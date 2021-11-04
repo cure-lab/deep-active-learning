@@ -93,7 +93,12 @@ parser.add_argument('--gammas',
 parser.add_argument('--pretrained', 
                     action='store_true',
                     default=False, help='use pretrained feature extractor')
-
+parser.add_argument('--save_model', 
+                    action='store_true',
+                    default=False, help='save model every steps')
+parser.add_argument('--load_model', 
+                    type=int,
+                    default=0, help='load model from save_path, with name "strategy_model_epoch_parameter.pkl"')
 # automatically set
 # parser.add_argument("--local_rank", type=int)
 
@@ -282,8 +287,14 @@ def main():
         strategy = query_strategies.__dict__[args.strategy](X_tr, Y_tr, X_te, Y_te, idxs_lb, net, handler, args)
 
     print_log('Strategy {} successfully loaded...'.format(args.strategy), log)
-
-
+    """
+    TO SAVE: add --save_model
+    TO LOAD AND TEST TTA: python main.py --model ResNet18 --nEnd 30 --dataset cifar10 --load_model 30 --save_model --save_path save/ssl_Consistency/ --strategy ssl_Consistency --rand_idx 1
+    TO LOAD AND TEST TTA: uncomment below 3 lines
+    strategy.load_model()
+    strategy.tta_test_from_load_model()
+    exit()
+    """
     # round 0 accuracy
     alpha = 2e-3
     strategy.train(alpha=alpha, n_epoch=args.n_epoch)
