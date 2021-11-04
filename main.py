@@ -289,7 +289,7 @@ def main():
     print_log('Strategy {} successfully loaded...'.format(args.strategy), log)
     """
     TO SAVE: add --save_model
-    TO LOAD AND TEST TTA: python main.py --model ResNet18 --nEnd 30 --dataset cifar10 --load_model 30 --save_model --save_path save/ssl_Consistency/ --strategy ssl_Consistency --rand_idx 1
+    TO LOAD AND TEST TTA: python main.py --model ResNet18 --nEnd 30 --dataset cifar10 --load_model 30 --save_path save/ssl_Consistency/ --strategy ssl_Consistency --rand_idx 1
     TO LOAD AND TEST TTA: uncomment below 3 lines
     strategy.load_model()
     strategy.tta_test_from_load_model()
