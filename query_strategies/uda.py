@@ -18,7 +18,7 @@ import PIL.ImageDraw
 from PIL import Image
 
 cifar10_mean = (0.4914, 0.4822, 0.4465)
-cifar10_std = (0.2471, 0.2435, 0.2616)
+cifar10_std = (0.2470, 0.2435, 0.2616)
 
 
 class UDALoss(nn.Module):
@@ -47,7 +47,7 @@ class RandAugment(object):
         return PIL.ImageEnhance.Brightness(img).enhance(v)
 
     def Color(self, img, v, max_v, bias=0):
-        v =float(v) * max_v / 10 + bias
+        v = float(v) * max_v / 10 + bias
         return PIL.ImageEnhance.Color(img).enhance(v)
 
     def Contrast(self, img, v, max_v, bias=0):
@@ -117,19 +117,19 @@ class RandAugment(object):
         self.n = n
         self.m = m
         self.augment_pool = [(self.AutoContrast, None, None),
-            (self.Brightness, 1.8, 0.1),
-            (self.Color, 1.8, 0.1),
-            (self.Contrast, 1.8, 0.1),
-            (self.CutoutConst, 40, None),
-            (self.Equalize, None, None),
-            (self.Invert, None, None),
-            (self.Posterize, 4, 0),
-            (self.Rotate, 30, None),
-            (self.Sharpness, 1.8, 0.1),
-            (self.ShearX, 0.3, None),
-            (self.ShearY, 0.3, None),
-            (self.Solarize, 256, None)
-            ]
+                             (self.Brightness, 1.8, 0.1),
+                             (self.Color, 1.8, 0.1),
+                             (self.Contrast, 1.8, 0.1),
+                             (self.CutoutConst, 40, None),
+                             (self.Equalize, None, None),
+                             (self.Invert, None, None),
+                             (self.Posterize, 4, 0),
+                             (self.Rotate, 30, None),
+                             (self.Sharpness, 1.8, 0.1),
+                             (self.ShearX, 0.3, None),
+                             (self.ShearY, 0.3, None),
+                             (self.Solarize, 256, None)
+                             ]
 
     def __call__(self, inp):
         # out1 = self.transform(inp)
@@ -142,7 +142,7 @@ class RandAugment(object):
         return inp
 
 
-class TransformAug(object):
+class TransformRandAug(object):
     def __init__(self, mean, std):
         self.weak = transforms.Compose([
             transforms.RandomHorizontalFlip(),
@@ -165,14 +165,15 @@ class TransformAug(object):
         return self.normalize(weak), self.normalize(strong)
 
 
-class ssl_UDA(Strategy):
+class ssl_RandUDA(Strategy):
     """
     Our omplementation of the paper: Unsupervised Data Augmentation for Consistency Training
     https://arxiv.org/pdf/1904.12848.pdf
     Google Research, Brain Team, 2 Carnegie Mellon University
     """
+
     def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(ssl_UDA, self).__init__(X, Y, idxs_lb, net, handler, args)
+        super(ssl_RandUDA, self).__init__(X, Y, idxs_lb, net, handler, args)
 
     def query(self, n):
         """
@@ -186,13 +187,12 @@ class ssl_UDA(Strategy):
 
     def _train(self, epoch, loader_labeled, loader_unlabeled, optimizer, train_iteration):
         self.clf.train()
-        self.clf = nn.DataParallel(self.clf).to(self.device)
         correct = 0.
         total = 0.
         train_loss = 0.
         labeled_train_iter = iter(loader_labeled)
         unlabeled_train_iter = iter(loader_unlabeled)
-        # logging 
+        # logging
         losses = AverageMeter()
         losses_x = AverageMeter()
         losses_u = AverageMeter()
@@ -246,59 +246,62 @@ class ssl_UDA(Strategy):
             for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
 
             if batch_idx % 10 == 0:
-                print ("[Batch={:03d}] [Loss={:.2f}]".format(batch_idx, loss))
+                print("[Batch={:03d}] [Loss={:.2f}]".format(batch_idx, loss))
 
         return 1. * correct / total, train_loss
-
 
     def train(self, alpha=0.1, n_epoch=10):
         # reset the model
         def weight_reset(m):
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear): 
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 m.reset_parameters()
+
         self.clf = self.clf.apply(weight_reset)
         self.clf = nn.DataParallel(self.clf).to(self.device)
 
         # prepare the training parameters
 
         parameters = self.clf.parameters() if not self.pretrained \
-                                else self.clf.module.classifier.parameters()
-        optimizer = optim.SGD(parameters, lr = self.args.lr, weight_decay=5e-4, 
-                                momentum=self.args.momentum)
-        
+            else self.clf.module.classifier.parameters()
+        optimizer = optim.SGD(parameters, lr=self.args.lr, weight_decay=5e-4,
+                              momentum=self.args.momentum)
+
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
 
         epoch_time = AverageMeter()
         recorder = RecorderMeter(n_epoch)
-        epoch = 0 
+        epoch = 0
         train_acc = 0.
         previous_loss = 0.
         if idxs_train.shape[0] != 0:
 
             transform = self.args.transform_tr if not self.pretrained else None
 
-            loader_labeled = DataLoader(self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train], 
-                                    torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
-                                    transform=transform), shuffle=True, 
-                                    **self.args.loader_tr_args)
-            loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled], 
-                                    torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), 
-                                    transform=TransformAug(mean=cifar10_mean, std=cifar10_std)), shuffle=True,
-                                    **self.args.loader_tr_args)
-        
+            loader_labeled = DataLoader(
+                self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train],
+                             torch.Tensor(self.Y.numpy()[idxs_train]).long(),
+                             transform=transform), shuffle=True,
+                **self.args.loader_tr_args)
+            loader_unlabeled = DataLoader(
+                self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled],
+                             torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
+                             transform=TransformRandAug(cifar10_mean, cifar10_std)), shuffle=True,
+                **self.args.loader_tr_args)
+
             train_iteration = max(len(loader_labeled.dataset.X),
-                                len(loader_unlabeled.dataset.X))/self.args.loader_tr_args['batch_size']
-            
+                                  len(loader_unlabeled.dataset.X)) / self.args.loader_tr_args['batch_size']
+
             # print('has:', n_epoch)
             for epoch in range(n_epoch):
                 ts = time.time()
-                current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule, self.args)
-                
+                current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule,
+                                                                self.args)
+
                 # Display simulation time
                 need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (n_epoch - epoch))
                 need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(need_hour, need_mins, need_secs)
-                
+
                 # train one epoch
                 train_acc, train_los = self._train(epoch, loader_labeled, loader_unlabeled, optimizer, train_iteration)
 
@@ -306,15 +309,15 @@ class ssl_UDA(Strategy):
                 epoch_time.update(time.time() - ts)
 
                 print_log('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
-                                                                                   need_time, current_learning_rate
-                                                                                   ) \
-                + ' [Best : Train Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(True),
-                                                               1. - recorder.max_accuracy(True)), self.args.log)
-                
-                
+                                                                                      need_time, current_learning_rate
+                                                                                      ) \
+                          + ' [Best : Train Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(True),
+                                                                                   1. - recorder.max_accuracy(True)),
+                          self.args.log)
+
                 recorder.update(epoch, train_los, train_acc, 0, 0)
 
-                # The converge condition 
+                # The converge condition
                 if abs(previous_loss - train_los) < 0.001:
                     break
                 else:
