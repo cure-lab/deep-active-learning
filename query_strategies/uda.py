@@ -17,24 +17,6 @@ import PIL.ImageEnhance
 import PIL.ImageDraw
 from PIL import Image
 
-cifar10_mean = (0.4914, 0.4822, 0.4465)
-cifar10_std = (0.2470, 0.2435, 0.2616)
-
-
-class UDALoss(nn.Module):
-    def __init__(self):
-        super(UDALoss, self).__init__()
-
-    def forward(self, model, x, x_h):
-        batchsize = x.shape[0]
-        with torch.no_grad():
-            output, aux = model(x)
-            pred_x = F.softmax(output, dim=1)
-        output, aux = model(x_h)
-        pred_x_h = F.log_softmax(output, dim=1)
-        lds = F.kl_div(pred_x_h, pred_x, None, None, reduction='sum') / batchsize
-        return lds
-
 
 class RandAugment(object):
     # TO DO: implementation of the data augmentation function
@@ -205,37 +187,44 @@ class ssl_RandUDA(Strategy):
             except StopIteration:
                 batch_iterator = iter(loader_labeled)
                 inputs_x, targets_x, _ = batch_iterator.next()
-            inputs_x = inputs_x.to(self.device)
-            targets_x = targets_x.to(self.device)
-            output, e1 = self.clf(inputs_x)
-            cross_entropy = nn.CrossEntropyLoss()
-            Loss_sup = cross_entropy(output, targets_x)
-
-            correct += torch.sum((torch.max(output, 1)[1] == targets_x).float()).data.item()
-            total += inputs_x.size(0)
-
-            # TO DO, calculate the loss of the unlabeled data
             try:
                 (inputs_u, inputs_u2), _, _ = unlabeled_train_iter.next()
             except StopIteration:
                 batch_iterator = iter(unlabeled_train_iter)
                 (inputs_u, inputs_u2), _, _ = batch_iterator.next()
-            inputs_u = inputs_u.to(self.device)
-            inputs_u2 = inputs_u2.to(self.device)
-            outputs_u, _ = self.clf(inputs_u)
-            outputs_u2, _ = self.clf(inputs_u2)
 
-            uda_loss = UDALoss()
-            Loss_unsup = uda_loss(self.clf, inputs_u, inputs_u2)
+            inputs = torch.cat((inputs_x, inputs_u, inputs_u2)).to(self.device)
+            targets_x = targets_x.to(self.device)
+            all_logits, e1 = self.clf(inputs)
+
+            sup_bsz = inputs_x.shape[0]
+            sup_logits = all_logits[:sup_bsz]
+            cross_loss = torch.nn.CrossEntropyLoss()
+            sup_loss = cross_loss(sup_logits, targets_x)
+            avg_sup_loss = torch.mean(sup_loss)
+
+
+            correct += torch.sum((torch.max(sup_logits, 1)[1] == targets_x).float()).data.item()
+            total += inputs_x.size(0)
+
+            # TO DO, calculate the loss of the unlabeled data
+            aug_bsz = inputs_u.shape[0]
+            ori_logits = all_logits[sup_bsz: sup_bsz + aug_bsz]
+            aug_logits = all_logits[sup_bsz + aug_bsz:]
+            p = torch.nn.functional.softmax(ori_logits.detach(), -1)
+            log_ori = torch.nn.functional.log_softmax(ori_logits.detach(), -1)
+            log_aug = torch.nn.functional.log_softmax(aug_logits, -1)
+            aug_loss = torch.sum(p * (log_ori - log_aug), -1)
+            avg_unsup_loss = torch.mean(aug_loss)
 
             # total loss
-            loss = Loss_sup + Loss_unsup
+            loss = avg_sup_loss + avg_unsup_loss
             train_loss += loss.item()
 
             # record loss
             losses.update(loss.item(), inputs_x.size(0))
-            losses_x.update(Loss_sup.item(), inputs_x.size(0))
-            losses_u.update(Loss_unsup.item(), inputs_x.size(0))
+            losses_x.update(avg_sup_loss.item(), inputs_x.size(0))
+            losses_u.update(avg_unsup_loss.item(), inputs_x.size(0))
 
             # compute gradient and do SGD step
             optimizer.zero_grad()
@@ -286,7 +275,7 @@ class ssl_RandUDA(Strategy):
             loader_unlabeled = DataLoader(
                 self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled],
                              torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
-                             transform=TransformRandAug(cifar10_mean, cifar10_std)), shuffle=True,
+                             transform=TransformRandAug((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))), shuffle=True,
                 **self.args.loader_tr_args)
 
             train_iteration = max(len(loader_labeled.dataset.X),
