@@ -111,7 +111,8 @@ args = parser.parse_args()
 ############################# For reproducibility #############################################
 
 if args.manualSeed is None:
-    args.manualSeed = random.randint(0, 10000)
+    args.manualSeed = args.rand_idx
+    # args.manualSeed = random.randint(0, 10000)
 random.seed(args.manualSeed)
 torch.manual_seed(args.manualSeed)
 np.random.seed(args.manualSeed)
@@ -253,6 +254,8 @@ def main():
         NUM_INIT_LB = int(args.nStart*n_pool/100)
         NUM_QUERY = int(args.nQuery*n_pool/100)
         NUM_ROUND = int((int(args.nEnd*n_pool/100) - NUM_INIT_LB)/ NUM_QUERY) 
+        if (int(args.nEnd*n_pool/100) - NUM_INIT_LB)% NUM_QUERY != 0:
+            NUM_ROUND += 1
     
     print_log("[init={:02d}] [query={:02d}] [end={:02d}]".format(NUM_INIT_LB, NUM_QUERY, int(args.nEnd*n_pool/100)), log)
 
@@ -314,7 +317,11 @@ def main():
         idxs_lb[q_idxs] = True
         te = time.time()
         tp = te - ts
-
+        
+        labeled = len(np.arange(n_pool)[idxs_lb])
+        if NUM_QUERY > int(args.nEnd*n_pool/100) - labeled:
+            NUM_QUERY = int(args.nEnd*n_pool/100) - labeled
+            
         # update
         strategy.update(idxs_lb)
         best_test_acc = strategy.train(alpha=alpha, n_epoch=args.n_epoch)
@@ -339,7 +346,7 @@ def main():
                             'nQuery',
                             args.nQuery,
                             'labeled',
-                            args.nStart + args.nQuery*rd,
+                            min(args.nStart + args.nQuery*rd,args.nEnd),
                             'accCompare',
                             acc[0],
                             acc[rd],
