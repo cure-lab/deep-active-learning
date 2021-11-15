@@ -39,7 +39,7 @@ We've been running our code in Python 3.7.
 
 |                Sampling Strategies                |    Year    | Done |
 |:-------------------------------------------------:|:----------:|:----:|
-|               Consistency-SSLAL [16]                |  ECCV'20  |  In progress |
+|               Consistency-SSLAL [16]                |  ECCV'20  |  ✅ |
 |               MixMatch-SSLAL [17]                |  arXiv  |  ✅ |
 |               UDA [18]                |  NIPS'20  |  In progress |
 

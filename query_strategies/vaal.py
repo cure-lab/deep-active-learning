@@ -87,7 +87,17 @@ class Discriminator_MNIST(nn.Module):
     def weight_init(self):
         for block in self._modules:
             for m in self._modules[block]:
-                kaiming_init(m)
+                self.kaiming_init(m)
+
+    def kaiming_init(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            init.kaiming_normal_(m.weight)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
+        elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+            m.weight.data.fill_(1)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
 
     def forward(self, z):
         return self.net(z)
@@ -137,9 +147,9 @@ class VAE(nn.Module):
         for block in self._modules:
             try:
                 for m in self._modules[block]:
-                    kaiming_init(m)
+                    self.kaiming_init(m)
             except:
-                kaiming_init(block)
+                self.kaiming_init(block)
 
     def forward(self, x):
         # print('x',x.shape)
@@ -161,6 +171,16 @@ class VAE(nn.Module):
         stds, epsilon = stds.to(device), epsilon.to(device)
         latents = epsilon * stds + mu
         return latents
+
+    def kaiming_init(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            init.kaiming_normal_(m.weight)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
+        elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+            m.weight.data.fill_(1)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
 
     def _encode(self, x):
         return self.encoder(x)
@@ -187,21 +207,23 @@ class Discriminator(nn.Module):
     def weight_init(self):
         for block in self._modules:
             for m in self._modules[block]:
-                kaiming_init(m)
+                self.kaiming_init(m)
+
+    def kaiming_init(self, m):
+        if isinstance(m, (nn.Linear, nn.Conv2d)):
+            init.kaiming_normal_(m.weight)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
+        elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+            m.weight.data.fill_(1)
+            if m.bias is not None:
+                m.bias.data.fill_(0)
 
     def forward(self, z):
         return self.net(z)
 
 
-def kaiming_init(m):
-    if isinstance(m, (nn.Linear, nn.Conv2d)):
-        init.kaiming_normal_(m.weight)
-        if m.bias is not None:
-            m.bias.data.fill_(0)
-    elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
-        m.weight.data.fill_(1)
-        if m.bias is not None:
-            m.bias.data.fill_(0)
+
 
 
 def normal_init(m, mean, std):
@@ -222,13 +244,12 @@ class AdversarySampler:
     def __init__(self, budget):
         self.budget = budget
 
-    def sample(self, vae, discriminator, data, cuda):
+    def sample(self, vae, discriminator, data):
         all_preds = []
         all_indices = []
 
         for images, _, indices in data:
-            if cuda:
-                images = images.to(device)
+            images = images.to(device)
 
             with torch.no_grad():
                 _, _, mu, _ = vae(images)
@@ -311,10 +332,9 @@ class VAAL(Strategy):
             # print(x.shape,labeled_imgs.shape)
             unlabeled_imgs = next(unlabeled_data)
 
-            if self.cuda:
-                labeled_imgs = labeled_imgs.to(device)
-                unlabeled_imgs = unlabeled_imgs.to(device)
-                labels = labels.to(device)
+            labeled_imgs = labeled_imgs.to(device)
+            unlabeled_imgs = unlabeled_imgs.to(device)
+            labels = labels.to(device)
 
             # # task_model step
             # preds = task_model(labeled_imgs)
@@ -363,10 +383,9 @@ class VAAL(Strategy):
                     labeled_imgs, _ = next(labeled_data)
                     unlabeled_imgs = next(unlabeled_data)
 
-                    if self.cuda:
-                        labeled_imgs = labeled_imgs.to(device)
-                        unlabeled_imgs = unlabeled_imgs.to(device)
-                        labels = labels.to(device)
+                    labeled_imgs = labeled_imgs.to(device)
+                    unlabeled_imgs = unlabeled_imgs.to(device)
+                    labels = labels.to(device)
 
             # Discriminator step
             for count in range(self.num_adv_steps):
@@ -380,9 +399,8 @@ class VAAL(Strategy):
                 lab_real_preds = torch.ones(labeled_imgs.size(0))
                 unlab_fake_preds = torch.zeros(unlabeled_imgs.size(0))
 
-                if self.cuda:
-                    lab_real_preds = lab_real_preds.to(device)
-                    unlab_fake_preds = unlab_fake_preds.to(device)
+                lab_real_preds = lab_real_preds.to(device)
+                unlab_fake_preds = unlab_fake_preds.to(device)
                 lab_real_preds = lab_real_preds.reshape(-1, 1)
                 lab_real_preds = lab_real_preds.detach()
                 unlab_fake_preds = unlab_fake_preds.reshape(-1, 1)
@@ -405,10 +423,9 @@ class VAAL(Strategy):
                     labeled_imgs, _ = next(labeled_data)
                     unlabeled_imgs = next(unlabeled_data)
 
-                    if self.cuda:
-                        labeled_imgs = labeled_imgs.to(device)
-                        unlabeled_imgs = unlabeled_imgs.to(device)
-                        labels = labels.to(device)
+                    labeled_imgs = labeled_imgs.to(device)
+                    unlabeled_imgs = unlabeled_imgs.to(device)
+                    labels = labels.to(device)
                 
             if batch_idx % 10 == 0:
                 print('Current vae model loss: {:.4f}'.format(total_vae_loss.item()))
@@ -427,23 +444,40 @@ class VAAL(Strategy):
         transform = self.args.transform_tr if not self.pretrained else None
         unlabeled_loader = DataLoader(self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
                                             transform=transform), shuffle=True,
+                                    pin_memory=True,
+                                    # sampler = DistributedSampler(train_data),
+                                    worker_init_fn=self.seed_worker,
+                                    generator=self.g,
                                **self.args.loader_tr_args)
-        labeled_loader = DataLoader(
-            self.handler(self.X[idxs_labeled], torch.Tensor(self.Y.numpy()[idxs_labeled]).long(),
-                         transform=transform), shuffle=True,
-            **self.args.loader_tr_args)
+
+        labeled_loader = DataLoader(self.handler(self.X[idxs_labeled], torch.Tensor(self.Y.numpy()[idxs_labeled]).long(),transform=transform), 
+                                    shuffle=True,
+                                    pin_memory=True,
+                                    # sampler = DistributedSampler(train_data),
+                                    worker_init_fn=self.seed_worker,
+                                    generator=self.g,
+                                    **self.args.loader_tr_args)
         labeled_data = self.read_data(labeled_loader)
         unlabeled_data = self.read_data(unlabeled_loader, labels=False)
-        self.vae = self.vae.apply(weight_reset).to(device)
+
+        if self.args.channels == 3:
+            self.vae = VAE(32).to(device)
+            self.discriminator = Discriminator(32).to(device)
+        else:
+            self.vae = VAE_MNIST().to(device)
+            self.discriminator = Discriminator_MNIST().to(device)
+
+        # self.vae = self.vae.apply(weight_reset)
         self.vae = nn.DataParallel(self.vae).to(device)
-        self.discriminator = self.discriminator.apply(weight_reset).to(device)
+        # self.discriminator = self.discriminator.apply(weight_reset)
         self.discriminator = nn.DataParallel(self.discriminator).to(device)
         optim_vae = optim.Adam(self.vae.parameters(), lr=5e-4)
-        
-        # optim_task_model = optim.SGD(task_model.parameters(), lr=0.01, weight_decay=5e-4, momentum=0.9)
         optim_discriminator = optim.Adam(self.discriminator.parameters(), lr=5e-4)
 
-        self.clf = self.net.apply(weight_reset).to(device)
+        # optim_task_model = optim.SGD(task_model.parameters(), lr=0.01, weight_decay=5e-4, momentum=0.9)
+        
+
+        self.clf = self.net.apply(weight_reset)
         self.clf = nn.DataParallel(self.clf).to(device)
 
         # optimizer = optim.Adam(self.clf.parameters(), lr=self.args.lr, weight_decay=0)
@@ -452,7 +486,7 @@ class VAAL(Strategy):
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
                                             transform=transform), shuffle=True,
                                **self.args.loader_tr_args)
-
+        print(device)
         epoch = 0
         accCurrent = 0.
         lossOld = 0.
@@ -482,7 +516,7 @@ class VAAL(Strategy):
         querry_indices = self.sampler.sample(self.vae,
                                              self.discriminator,
                                              unlabeled_loader,
-                                             self.cuda)
+                                             )
 
         return idxs_unlabeled[querry_indices]
 

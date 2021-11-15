@@ -94,7 +94,7 @@ class LossNet(nn.Module):
             out = self.FC_list[num](out)
             out = F.relu(out)
             out_list.append(out)
-
+        # print(torch.cat(out_list, 1).size())
         out = self.linear(torch.cat(out_list, 1))
         return out
 
@@ -170,9 +170,15 @@ class LearningLoss(Strategy):
 
         transform = self.args.transform_tr if not self.pretrained else None
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
+
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
-                                            transform=transform), shuffle=True,
-                               **self.args.loader_tr_args)
+                                            transform=transform), 
+                                    shuffle=True,
+                                    pin_memory=True,
+                                    # sampler = DistributedSampler(train_data),
+                                    worker_init_fn=self.seed_worker,
+                                    generator=self.g,
+                                    **self.args.loader_tr_args)                      
 
         # n_epoch = self.args.n_epoch']
         self.clf = self.net.apply(weight_reset).to(self.device) 
@@ -184,6 +190,8 @@ class LearningLoss(Strategy):
             x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
             scores, e1, features = self.clf(x,intermediate = True)
             break
+        # for f in features:
+        #     print(f.size())
         self.loss_module = LossNet(features).to(self.device) 
         optim_module = optim.SGD(self.loss_module.parameters(), lr=LR,
                                  momentum=MOMENTUM, weight_decay=WDECAY)
