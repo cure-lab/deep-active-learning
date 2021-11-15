@@ -45,6 +45,27 @@ n_epoch=50
 # step=5
 # n_epoch=150
 
+# strategies=(
+#             # 'RandomSampling' \
+#             # 'CoreSet' \
+#             # 'BadgeSampling' \
+#             # 'BALDDropout' \
+#             # 'LeastConfidence' \
+#             # 'KMeansSampling' \
+#             # 'AdversarialBIM' \
+#             'WAAL' \
+#             'ActiveLearningByLearning' \
+#             'VAAL' \
+#             'LearningLoss' \
+#             'ClusterMarginSampling' \
+#             'uncertainGCN' \
+#             'coreGCN' \
+#             'MCADL' \
+#             # 'ssl_LC' \
+#             # 'ssl_Random' \
+#             # 'ssl_Diff2AugKmeans' \
+#             )
+
 strategies=(
             # 'RandomSampling' \
             # 'CoreSet' \
@@ -54,9 +75,9 @@ strategies=(
             # 'KMeansSampling' \
             'AdversarialBIM' \
             # 'WAAL' \
-            'ActiveLearningByLearning' \
-            'VAAL' \
-            'LearningLoss' \
+            # 'ActiveLearningByLearning' \
+            # 'VAAL' \
+            # 'LearningLoss' \
             # 'ClusterMarginSampling' \
             # 'uncertainGCN' \
             # 'coreGCN' \
@@ -66,6 +87,7 @@ strategies=(
             # 'ssl_Diff2AugKmeans' \
             )
             
+
 save_path=save/${DATE}/${dataset}
 save_file='main_result.csv'
 

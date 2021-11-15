@@ -192,8 +192,7 @@ class LearningLoss(Strategy):
         optimizers = {'backbone': optim_backbone, 'module': optim_module}
         schedulers = {'module': sched_module}
         
-        
-
+         
         epoch = 1
         accCurrent = 0.
         while epoch < n_epoch:
@@ -205,8 +204,8 @@ class LearningLoss(Strategy):
             current_learning_rate, _ = adjust_learning_rate(optimizers['backbone'], epoch, self.args.gammas, self.args.schedule, self.args)
             schedulers['module'].step()
             print(str(epoch) + ' training accuracy: ' + str(accCurrent),'lr',current_learning_rate, flush=True)
-            if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
-                self.clf = self.net.apply(weight_reset)
+            # if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
+            #     self.clf = self.net.apply(weight_reset)
         
         return recorder.max_accuracy(istrain=False)
 

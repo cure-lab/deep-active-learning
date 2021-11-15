@@ -19,7 +19,9 @@ class AdversarialBIM(Strategy):
 		out, e1 = self.clf((nx+eta).to(self.device))
 		py = out.max(1)[1]
 		ny = out.max(1)[1]
+		cnt = 0
 		while py.item() == ny.item():
+			cnt += 1
 			loss = F.cross_entropy(out, ny)
 			loss.backward()
 
@@ -28,6 +30,12 @@ class AdversarialBIM(Strategy):
 
 			out, e1 = self.clf((nx+eta).to(self.device))
 			py = out.max(1)[1]
+
+			if cnt % 100 == 0:
+				print (cnt)
+
+			if cnt == 1000:
+				break
 
 		return (eta*eta).sum()
 
@@ -44,6 +52,7 @@ class AdversarialBIM(Strategy):
 		data_pool = self.handler(self.X[idxs_unlabeled], self.Y[idxs_unlabeled], 
 						transform=transform)
 		for i in range(len(idxs_unlabeled)):
+
 			if i % 100 == 0:
 				print('adv {}/{}'.format(i, len(idxs_unlabeled)))
 			x, y, idx = data_pool[i]
