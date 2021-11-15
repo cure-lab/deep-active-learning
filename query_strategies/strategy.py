@@ -91,7 +91,7 @@ class Strategy:
             for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
 
             optimizer.step()
-
+            
             if batch_idx % 10 == 0:
                 print ("[Batch={:03d}] [Loss={:.2f}]".format(batch_idx, loss))
 
@@ -145,6 +145,7 @@ class Strategy:
                 
                 # train one epoch
                 train_acc, train_los = self._train(epoch, loader_tr, optimizer)
+                # self.save_tta_loss_values(self.get_tta_values(),train_los,epoch)
                 test_acc = self.predict(self.X_te, self.Y_te)
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
@@ -154,7 +155,7 @@ class Strategy:
                 + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
                                                                1. - recorder.max_accuracy(False)))
                 
-                
+
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
 
                 # The converge condition 
@@ -162,11 +163,13 @@ class Strategy:
                     break
                 else:
                     previous_loss = train_los
+
+            # self.save_tta_values(self.get_tta_values())
             if self.args.save_model:
                 self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
-            self.save_tta_values(self.get_tta_values())
+
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
@@ -338,6 +341,7 @@ class Strategy:
 
         n_class, n_iters = 10, 32 
         tta_values = []
+        
         augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
         augtest_loader = torch.utils.data.DataLoader(
                         augset,
@@ -346,13 +350,23 @@ class Strategy:
                         num_workers=self.args.loader_te_args['num_workers'],
                         pin_memory=True)
         self.clf.eval()
+        tta_values_correct = []
+        tta_values_wrong = []
         for i, all_images in tqdm(enumerate(augtest_loader)):
             # print("progress {}/{}".format(i, len(self.X_te)))
             all_logits, _ = self.clf(torch.cat(all_images, 0).to(self.device))
             preds = torch.nn.functional.softmax(all_logits.detach().cpu(), dim=1)
             prob = preds.mean(0)
+            y_pred = preds.sum(0)  
+            y_pred = int(y_pred.max(0)[1].cpu()) 
+            var = preds.var(0).sum()
             entropy = (-prob*np.log2(prob)).sum()
-            tta_values.append(entropy)
+
+            tta_values.append(var)
+            if y_pred == self.Y_te[i]:
+                tta_values_correct.append(var)
+            else:
+                tta_values_wrong.append(var)
             # variance = preds.var(0).sum()
             # tta_values.append(variance)
             if i % 1000 == 0:
@@ -362,6 +376,30 @@ class Strategy:
                 grid = make_grid(torch.cat(all_images, 0), nrow=len(all_images), padding=2)
                 save_image(grid, filename=os.path.join(self.args.save_path, 'img_augmentation_{}.png'.format(i)))
 
+
+        ### draw histgram
+        import matplotlib.pyplot as plt
+        tta_list = np.array(tta_values)
+        max_tta = tta_list.max()
+        gap = max_tta/20
+        print(max_tta,len(tta_values_correct), len(tta_values_wrong))
+        gap_list = [x*gap for x in range(20)]
+        distribute_list_c = [0 for x in range(20)]
+        distribute_list_w = [0 for x in range(20)]
+        for tta in tta_values_correct:
+            for i in range(19):
+                if tta > gap_list[i] and tta <= gap_list[i+1]:
+                    distribute_list_c[i] +=1
+        for tta in tta_values_wrong:
+            for i in range(19):
+                if tta > gap_list[i] and tta <= gap_list[i+1]:
+                    distribute_list_w[i] +=1
+        
+        gap_list = [str(gap)[1:5] for gap in gap_list]
+        plt.figure(figsize=(12,4))
+        plt.bar(gap_list, distribute_list_c)
+        plt.bar(gap_list, distribute_list_w,color = 'orange')
+        plt.savefig(fname=os.path.join(self.args.save_path, "hist_t%s.png"%str(self.args.load_model)))
         print('TTA_values:', np.array(tta_values).sum())
         return np.array(tta_values).sum()
     
@@ -369,6 +407,20 @@ class Strategy:
         f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
         f.write(str(labeled)+ '   ' + str(tta)+ '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
+        f.close()
+    
+    def save_tta_loss_values(self,tta,loss,iter):
+        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_loss_value.txt'),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(int(100*labeled/len(self.X)))
+        f.write(str(labeled_percentage)+ '   ' + str(iter) + '   ' + str(tta)+ '   ' + str(loss) + '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
+        f.close()
+
+    def save_tta_acc_values(self,tta,acc):
+        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
+        f.write(str(self.args.load_model)+ '   ' + str(tta)+ '   ' + str(acc) + '\n')
         print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
         f.close()
     
@@ -386,6 +438,7 @@ class Strategy:
             self.load_model()
         test_acc = self.predict(self.X_te, self.Y_te)
         tta = self.get_tta_values()
+        self.save_tta_acc_values(tta,test_acc)
         print(test_acc, tta)
         
 class AugMixDataset(torch.utils.data.Dataset):
