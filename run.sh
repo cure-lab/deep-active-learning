@@ -69,7 +69,7 @@ strategies=(
 save_path=save/${DATE}/${dataset}
 save_file='main_result.csv'
 
-data_path='/research/dept2/yuli/datasets'
+data_path='../datasets'
 
 for rand_idx in 1 2 3 4 5
 # for rand_idx in 1 2 3 4 5
