@@ -58,7 +58,7 @@ TWD
 
 # Contact
 If you have any questions, or would like to contribute to this repo, please feel free to contact:
-  `yuli@cse.cuhk.edu.hk` or   `mxchen@cse.cuhk.edu.hk`
+  LI YU `yuli@cse.cuhk.edu.hk`,   CHEN Muxi `mxchen21@cse.cuhk.edu.hk` or Prof. XU Qiang `qxu@cse.cuhk.edu.hk`
 
   
 
