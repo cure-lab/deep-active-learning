@@ -14,8 +14,8 @@ import time
 import sys, os
 from torchvision.utils import save_image
 from tqdm import tqdm
-
 torch.backends.cudnn.benchmark = True
+# Use some code in "https://github.com/YU1ut/MixMatch-pytorch" to reproduce mixmatch in our repo 
 
 lambda_u = 100
 ema_decay = 0.999
