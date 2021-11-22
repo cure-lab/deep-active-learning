@@ -1,9 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=TEST
-#SBATCH --mail-user=yuli@cse.cuhk.edu.hk
-#SBATCH --mail-type=ALL
-#SBATCH --output=./save/
-#SBATCH --gres=gpu:2 
+
 
 HOST=$(hostname)
 echo "Current host is: $HOST"
