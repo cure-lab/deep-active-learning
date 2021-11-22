@@ -8,7 +8,8 @@ import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
 """"
-因为API使用了限制内存的方法toma，导致速度巨慢，可以尝试querry小batch（500张左右，gpu上不到一分钟）但不进行内存限制
+BatchBALD: Efficient and Diverse Batch Acquisition for Deep Bayesian Active Learning
+Reproduce through API
 """
 
 @dataclasses.dataclass
@@ -26,7 +27,7 @@ class BatchBALD(Strategy):
     def compute_NKC(self, X,Y):
         loader_te = DataLoader(self.handler(X, Y, transform=self.args['transformTest']),
                             shuffle=False, **self.args['loader_te_args'])
-        K = 10 # MC采样
+        K = 10 # MC
         self.clf.train()
         probs = torch.zeros([K, len(Y), len(np.unique(Y))])
         with torch.no_grad():
@@ -43,5 +44,5 @@ class BatchBALD(Strategy):
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         prob_NKC = self.compute_NKC(self.X[idxs_unlabeled], self.Y[idxs_unlabeled])
         with torch.no_grad():
-            batch = get_batchbald_batch(prob_NKC, n, 10000000) # 第三个参数不确定
+            batch = get_batchbald_batch(prob_NKC, n, 10000000) # Don't know the meaning of the third argument
         return idxs_unlabeled[batch.indices]
