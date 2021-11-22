@@ -5,7 +5,8 @@ from torch.utils.data import DataLoader
 import torch
 from torch.autograd import Variable
 from sklearn.cluster import KMeans
-
+# (Google, arXiv) Combining MixMatch and Active Learning for Better Accuracy with Fewer Labels
+# Reproduced by muxi
 class TransformTwice:
     def __init__(self, transform1,transform2):
         self.transform1 = transform1
