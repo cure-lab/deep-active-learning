@@ -57,8 +57,8 @@ The result will be saved in the **./save** directory
 TWD
 
 # Contact
-If you have any questions, or would like to contribute to this repo, please feel free to contact:
-  LI YU `yuli@cse.cuhk.edu.hk`,   CHEN Muxi `mxchen21@cse.cuhk.edu.hk` or Prof. XU Qiang `qxu@cse.cuhk.edu.hk`
+If you have any questions/suggestions, or would like to contribute to this repo, please feel free to contact:
+  Yu Li `yuli@cse.cuhk.edu.hk`,   Muxi Chen `mxchen21@cse.cuhk.edu.hk` or Prof. Qiang Xu `qxu@cse.cuhk.edu.hk`
 
   
 
