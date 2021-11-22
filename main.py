@@ -290,14 +290,7 @@ def main():
         strategy = query_strategies.__dict__[args.strategy](X_tr, Y_tr, X_te, Y_te, idxs_lb, net, handler, args)
 
     print_log('Strategy {} successfully loaded...'.format(args.strategy), log)
-    """
-    TO SAVE: add --save_model
-    TO LOAD AND TEST TTA: python main.py --model ResNet18 --nEnd 30 --dataset cifar10 --load_model 30 --save_path save/ssl_Consistency/ --strategy ssl_Consistency --rand_idx 1
-    TO LOAD AND TEST TTA: uncomment below 3 lines
-    strategy.load_model()
-    strategy.tta_test_from_load_model()
-    exit()
-    """
+
     # round 0 accuracy
     alpha = 2e-3
     strategy.train(alpha=alpha, n_epoch=args.n_epoch)
@@ -309,7 +302,10 @@ def main():
     out_file = os.path.join(args.save_path, args.save_file)
     for rd in range(1, NUM_ROUND+1):
         print('Round {}/{}'.format(rd, NUM_ROUND), flush=True)
-  
+        labeled = len(np.arange(n_pool)[idxs_lb])
+        if NUM_QUERY > int(args.nEnd*n_pool/100) - labeled:
+            NUM_QUERY = int(args.nEnd*n_pool/100) - labeled
+            
         # query
         ts = time.time()
         output = strategy.query(NUM_QUERY)
@@ -317,11 +313,7 @@ def main():
         idxs_lb[q_idxs] = True
         te = time.time()
         tp = te - ts
-        
-        labeled = len(np.arange(n_pool)[idxs_lb])
-        if NUM_QUERY > int(args.nEnd*n_pool/100) - labeled:
-            NUM_QUERY = int(args.nEnd*n_pool/100) - labeled
-            
+       
         # update
         strategy.update(idxs_lb)
         best_test_acc = strategy.train(alpha=alpha, n_epoch=args.n_epoch)
@@ -346,7 +338,7 @@ def main():
                             'nQuery',
                             args.nQuery,
                             'labeled',
-                            min(args.nStart + args.nQuery*rd,args.nEnd),
+                            min(args.nStart + args.nQuery*rd, args.nEnd),
                             'accCompare',
                             acc[0],
                             acc[rd],
