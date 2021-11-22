@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from .strategy import Strategy
+# from https://github.com/JordanAsh/badge
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
