@@ -40,8 +40,9 @@ import numpy as np
 # from sklearn.externals.six import string_types
 # from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import pairwise_distances
-
+# from https://github.com/JordanAsh/badge
 # kmeans ++ initialization
+
 def init_centers(X, K):
     ind = np.argmax([np.linalg.norm(s, 2) for s in X])
     mu = [X[ind]]
