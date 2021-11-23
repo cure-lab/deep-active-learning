@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from .strategy import Strategy
 from torch.autograd import Variable
 import pdb
+# from https://github.com/JordanAsh/badge
+
 class AdversarialDeepFool(Strategy):
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args, max_iter=50):
         super(AdversarialDeepFool, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)

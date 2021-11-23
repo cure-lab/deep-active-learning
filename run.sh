@@ -82,8 +82,8 @@ strategies=(
             # 'uncertainGCN' \
             # 'coreGCN' \
             # 'MCADL' \
-            'ssl_LC' \
-            # 'ssl_Random' \
+            # 'ssl_LC' \
+            'ssl_Random' \
             # 'ssl_Diff2AugKmeans' \
             )
             

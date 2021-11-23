@@ -12,6 +12,8 @@ from copy import deepcopy
 from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time
 import warnings
 warnings.filterwarnings("ignore")
+# Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles
+# Paper only proposes a method to measure data uncertainty, we apply it to active learning
 
 def kl_div_with_logit(q_logit, p_logit):
 

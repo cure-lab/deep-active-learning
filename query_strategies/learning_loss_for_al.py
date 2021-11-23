@@ -2,6 +2,7 @@
 
 Reference:
 [Yoo et al. 2019] Learning Loss for Active Learning (https://arxiv.org/abs/1905.03677)
+We use some of the code from https://github.com/Mephisto405/Learning-Loss-for-Active-Learning to reproduce 
 '''
 
 import torch.nn.functional as F

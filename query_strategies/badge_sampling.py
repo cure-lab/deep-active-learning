@@ -1,47 +1,48 @@
 import numpy as np
 from torch.utils.data import DataLoader
 from .strategy import Strategy
-import pickle
+# import pickle
 from scipy.spatial.distance import cosine
-import sys
-import gc
-from scipy.linalg import det
-from scipy.linalg import pinv as inv
+# import sys
+# import gc
+# from scipy.linalg import det
+# from scipy.linalg import pinv as inv
 from copy import copy as copy
 from copy import deepcopy as deepcopy
-import torch
-from torch import nn
-import torchfile
-from torch.autograd import Variable
-import torch.optim as optim
+# import torch
+# from torch import nn
+# import torchfile
+# from torch.autograd import Variable
+# import torch.optim as optim
 import pdb
-from torch.nn import functional as F
-import argparse
-import torch.nn as nn
-from collections import OrderedDict
+# from torch.nn import functional as F
+# import argparse
+# import torch.nn as nn
+# from collections import OrderedDict
 from scipy import stats
-import time
+# import time
 import numpy as np
-import scipy.sparse as sp
-from itertools import product
-from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
-from sklearn.metrics.pairwise import euclidean_distances
-from sklearn.metrics.pairwise import pairwise_distances_argmin_min
-from sklearn.utils.extmath import row_norms, squared_norm, stable_cumsum
-from sklearn.utils.sparsefuncs_fast import assign_rows_csr
-from sklearn.utils.sparsefuncs import mean_variance_axis
-from sklearn.utils.validation import _num_samples
-from sklearn.utils import check_array
-from sklearn.utils import gen_batches
-from sklearn.utils import check_random_state
-from sklearn.utils.validation import check_is_fitted
-from sklearn.utils.validation import FLOAT_DTYPES
-from sklearn.metrics.pairwise import rbf_kernel as rbf
+# import scipy.sparse as sp
+# from itertools import product
+# from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
+# from sklearn.metrics.pairwise import euclidean_distances
+# from sklearn.metrics.pairwise import pairwise_distances_argmin_min
+# from sklearn.utils.extmath import row_norms, squared_norm, stable_cumsum
+# from sklearn.utils.sparsefuncs_fast import assign_rows_csr
+# from sklearn.utils.sparsefuncs import mean_variance_axis
+# from sklearn.utils.validation import _num_samples
+# from sklearn.utils import check_array
+# from sklearn.utils import gen_batches
+# from sklearn.utils import check_random_state
+# from sklearn.utils.validation import check_is_fitted
+# from sklearn.utils.validation import FLOAT_DTYPES
+# from sklearn.metrics.pairwise import rbf_kernel as rbf
 # from sklearn.externals.six import string_types
-from sklearn.exceptions import ConvergenceWarning
+# from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import pairwise_distances
-
+# from https://github.com/JordanAsh/badge
 # kmeans ++ initialization
+
 def init_centers(X, K):
     ind = np.argmax([np.linalg.norm(s, 2) for s in X])
     mu = [X[ind]]
