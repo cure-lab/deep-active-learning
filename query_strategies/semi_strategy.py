@@ -14,8 +14,8 @@ import time
 import sys, os
 from torchvision.utils import save_image
 from tqdm import tqdm
+
 torch.backends.cudnn.benchmark = True
-# Use some code in "https://github.com/YU1ut/MixMatch-pytorch" to reproduce mixmatch in our repo 
 
 lambda_u = 100
 ema_decay = 0.999
@@ -132,14 +132,16 @@ class semi_Strategy:
         losses_u = AverageMeter()
         ws = AverageMeter()
         criterion = SemiLoss()
+        ce_loss = 0.
         acc_divisor = 1e-5
-        # print(train_iteration)
         for batch_idx in range(int(train_iteration)):
            
             try:
                 inputs_x, targets_x, _ = labeled_train_iter.next()
                 out, e1 = self.clf(inputs_x.cuda())
-                
+                loss = F.cross_entropy(out, targets_x.to(self.device))
+
+                ce_loss += loss.item()
                 accFinal += torch.sum((torch.max(out,1)[1] == targets_x.cuda()).float()).data.item()
                 batch_size = inputs_x.size(0)
                 targets_x = torch.zeros(batch_size, 10).scatter_(1, targets_x.view(-1,1).long(), 1)
@@ -148,12 +150,15 @@ class semi_Strategy:
                 labeled_train_iter = iter(loader_labeled)
                 inputs_x, targets_x, _ = labeled_train_iter.next()
                 out, e1 = self.clf(inputs_x.cuda())
-                
+                loss = F.cross_entropy(out, targets_x.to(self.device))
+                Store_TTA = False
+                ce_loss += loss.item()
                 accFinal += torch.sum((torch.max(out,1)[1] == targets_x.cuda()).float()).data.item()
                 batch_size = inputs_x.size(0)
                 targets_x = torch.zeros(batch_size, 10).scatter_(1, targets_x.view(-1,1).long(), 1)
                 inputs_x, targets_x = inputs_x.to(self.device), targets_x.to(self.device)
-
+            
+            
 
             try:
                 (inputs_u,inputs_u2), _ , _ = unlabeled_train_iter.next()
@@ -233,7 +238,7 @@ class semi_Strategy:
             if batch_idx % 10 == 0:
                 print ("[Batch={:03d}] [Loss={:.2f}]".format(batch_idx, loss))
 
-        return accFinal / acc_divisor, train_loss
+        return accFinal / acc_divisor, train_loss, ce_loss/int(train_iteration)
 
     
     def train(self, alpha=0.1, n_epoch=10):
@@ -270,6 +275,8 @@ class semi_Strategy:
                                     # sampler = DistributedSampler(train_data),
                                     worker_init_fn=self.seed_worker,
                                     **self.args.loader_tr_args)
+            # print(len(loader_labeled.dataset.X))
+            # exit()
             loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled], 
                                     torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), 
                                     transform=TransformTwice(transform)), shuffle=True, 
@@ -279,6 +286,7 @@ class semi_Strategy:
             # print('X',len(self.X))
             # print('has:', n_epoch)
             for epoch in range(n_epoch):
+                print(epoch,n_epoch)
                 ts = time.time()
                 current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule, self.args)
                 ema_optimizer.set_wd(current_learning_rate)
@@ -288,8 +296,8 @@ class semi_Strategy:
                 need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(need_hour, need_mins, need_secs)
                 
                 # train one epoch
-                train_acc, train_los = self._train(epoch, loader_labeled, loader_unlabeled, optimizer, ema_optimizer,train_iteration)
-
+                train_acc, train_los, ce_loss = self._train(epoch, loader_labeled, loader_unlabeled, optimizer, ema_optimizer,train_iteration)
+                
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
 
@@ -301,6 +309,8 @@ class semi_Strategy:
                 
                 
                 test_acc = self.predict(self.X_te, self.Y_te)
+                # self.save_tta_loss_train_predict_values(self.get_tta_values(),train_los,ce_loss, epoch,train_acc,test_acc)
+
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
                 # The converge condition 
                 if abs(previous_loss - train_los) < 0.0001:
@@ -566,6 +576,23 @@ class semi_Strategy:
         f.write(str(self.args.load_model)+ '   ' + str(tta)+ '   ' + str(acc) + '\n')
         print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
         f.close()
+    
+    def save_tta_loss_values(self,tta,loss,iter):
+        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_loss_value.txt'),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(int(100*labeled/len(self.X)))
+        f.write(str(labeled_percentage)+ '   ' + str(iter) + '   ' + str(tta)+ '   ' + str(loss) + '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
+        f.close()
+
+    def save_tta_loss_train_predict_values(self,tta,loss,ce_loss, itera,train,predict):
+        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_loss_value.txt'),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(int(100*labeled/len(self.X)))
+        print(str(labeled_percentage)+ '   ' + str(itera) + '   ' + str(tta)+ '   ' + str(loss) + '   ' + str(ce_loss) + '   ' + str(train) + '   '+ str(predict) + '\n')
+        f.write(str(labeled_percentage)+ '   ' + str(itera) + '   ' + str(tta)+ '   ' + str(loss) + '   ' + str(ce_loss) + '   ' + str(train) + '   '+ str(predict) + '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
+        f.close()
 
     def save_model(self):
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
@@ -574,7 +601,7 @@ class semi_Strategy:
         print('save to ',os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'.pkl'))
 
     def load_model(self):
-        self.ema_model = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+str(self.args.load_model)+'.pkl'))
+        self.ema_model = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+'0.5'+'.pkl'))
 
     def tta_test_from_load_model(self):
         if self.args.load_model != 0:
