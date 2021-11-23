@@ -47,7 +47,7 @@ parser.add_argument("-t","--total", action='store_true',
 # model and data
 parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str)
 parser.add_argument('--dataset', help='dataset (non-openML)', type=str, default='')
-parser.add_argument('--data_path', help='data path', type=str)
+parser.add_argument('--data_path', help='data path', type=str, default='/research/dept2/yuli/datasets')
 parser.add_argument('--save_path', help='result save save_dir', default='./save')
 parser.add_argument('--save_file', help='result save save_dir', default='result.csv')
 

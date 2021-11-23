@@ -162,11 +162,12 @@ class Strategy:
                     break
                 else:
                     previous_loss = train_los
+                    
             if self.args.save_model:
                 self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
-            self.save_tta_values(self.get_tta_values())
+            # self.save_tta_values(self.get_tta_values())
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
@@ -331,39 +332,39 @@ class Strategy:
             return torch.Tensor(embedding)
 
 
-    def get_tta_values(self):    
-        # apply multiple data augmentation and calculate the variance
-        # TO BE TESTED
-        from torchvision.utils import make_grid
+    # def get_tta_values(self):    
+    #     # apply multiple data augmentation and calculate the variance
+    #     # TO BE TESTED
+    #     from torchvision.utils import make_grid
 
-        n_class, n_iters = 10, 32 
-        tta_values = []
-        augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
-        augtest_loader = torch.utils.data.DataLoader(
-                        augset,
-                        batch_size=1,
-                        shuffle=False,
-                        num_workers=self.args.loader_te_args['num_workers'],
-                        pin_memory=True)
-        self.clf.eval()
-        for i, all_images in tqdm(enumerate(augtest_loader)):
-            # print("progress {}/{}".format(i, len(self.X_te)))
-            all_logits, _ = self.clf(torch.cat(all_images, 0).to(self.device))
-            preds = torch.nn.functional.softmax(all_logits.detach().cpu(), dim=1)
-            prob = preds.mean(0)
-            entropy = (-prob*np.log2(prob)).sum()
-            tta_values.append(entropy)
-            # variance = preds.var(0).sum()
-            # tta_values.append(variance)
-            if i % 1000 == 0:
+    #     n_class, n_iters = 10, 32 
+    #     tta_values = []
+    #     augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
+    #     augtest_loader = torch.utils.data.DataLoader(
+    #                     augset,
+    #                     batch_size=1,
+    #                     shuffle=False,
+    #                     num_workers=self.args.loader_te_args['num_workers'],
+    #                     pin_memory=True)
+    #     self.clf.eval()
+    #     for i, all_images in tqdm(enumerate(augtest_loader)):
+    #         # print("progress {}/{}".format(i, len(self.X_te)))
+    #         all_logits, _ = self.clf(torch.cat(all_images, 0).to(self.device))
+    #         preds = torch.nn.functional.softmax(all_logits.detach().cpu(), dim=1)
+    #         prob = preds.mean(0)
+    #         entropy = (-prob*np.log2(prob)).sum()
+    #         tta_values.append(entropy)
+    #         # variance = preds.var(0).sum()
+    #         # tta_values.append(variance)
+    #         if i % 1000 == 0:
                 
-                # print ("size: ", len(all_images))
-                # print ("tensor size: ", torch.cat(all_images, 0).shape)
-                grid = make_grid(torch.cat(all_images, 0), nrow=len(all_images), padding=2)
-                save_image(grid, filename=os.path.join(self.args.save_path, 'img_augmentation_{}.png'.format(i)))
+    #             # print ("size: ", len(all_images))
+    #             # print ("tensor size: ", torch.cat(all_images, 0).shape)
+    #             grid = make_grid(torch.cat(all_images, 0), nrow=len(all_images), padding=2)
+    #             save_image(grid, fp=os.path.join(self.args.save_path, 'img_augmentation_{}.png'.format(i)))
 
-        print('TTA_values:', np.array(tta_values).sum())
-        return np.array(tta_values).sum()
+    #     print('TTA_values:', np.array(tta_values).sum())
+    #     return np.array(tta_values).sum()
     
     def save_tta_values(self,tta):
         f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
