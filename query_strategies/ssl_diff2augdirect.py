@@ -4,8 +4,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch
 from torch.autograd import Variable
-# (Google, arXiv) Combining MixMatch and Active Learning for Better Accuracy with Fewer Labels
-# Reproduced by muxi
 
 class TransformTwice:
     def __init__(self, transform1,transform2):
@@ -18,8 +16,8 @@ class TransformTwice:
         return out1, out2
 
 class ssl_Diff2AugDirect(semi_Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(ssl_Diff2AugDirect, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(ssl_Diff2AugDirect, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
 
     def predict_prob_aug(self, X, Y):
         
