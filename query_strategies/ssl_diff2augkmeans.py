@@ -5,8 +5,7 @@ from torch.utils.data import DataLoader
 import torch
 from torch.autograd import Variable
 from sklearn.cluster import KMeans
-# (Google, arXiv) Combining MixMatch and Active Learning for Better Accuracy with Fewer Labels
-# Reproduced by muxi
+
 class TransformTwice:
     def __init__(self, transform1,transform2):
         self.transform1 = transform1
@@ -18,8 +17,8 @@ class TransformTwice:
         return out1, out2
 
 class ssl_Diff2AugKmeans(semi_Strategy):
-    def __init__(self, X, Y, idxs_lb, net, handler, args):
-        super(ssl_Diff2AugKmeans, self).__init__(X, Y, idxs_lb, net, handler, args)
+    def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
+        super(ssl_Diff2AugKmeans, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
     
     def prepare_emb(self):
         loader_te = DataLoader(self.handler(self.X, self.Y, transform=TransformTwice(self.args.transform_te, self.args.transform_tr )), shuffle=False, **self.args.loader_te_args)
