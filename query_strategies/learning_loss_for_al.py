@@ -2,7 +2,6 @@
 
 Reference:
 [Yoo et al. 2019] Learning Loss for Active Learning (https://arxiv.org/abs/1905.03677)
-We use some of the code from https://github.com/Mephisto405/Learning-Loss-for-Active-Learning to reproduce 
 '''
 
 import torch.nn.functional as F
@@ -19,7 +18,7 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data.sampler import SubsetRandomSampler
-
+import time
 # Torchvison
 import torchvision.transforms as T
 # import torchvision.models as models
@@ -137,6 +136,8 @@ class LearningLoss(Strategy):
         accLoss = 0.
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
             x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
+            optimizers['backbone'].zero_grad()
+            optimizers['module'].zero_grad()
             scores, e1, features = self.clf(x,intermediate = True)
             target_loss = criterion(scores, y)
             if epoch > 120:
@@ -147,11 +148,11 @@ class LearningLoss(Strategy):
             pred_loss = pred_loss.view(pred_loss.size(0))
             
             m_backbone_loss = torch.sum(target_loss) / target_loss.size(0)
-            m_module_loss = LossPredLoss(pred_loss, target_loss, margin=MARGIN)
+            m_module_loss = LossPredLoss(
+                pred_loss, target_loss, margin=MARGIN)
             loss = m_backbone_loss + WEIGHT * m_module_loss
 
-            optimizers['backbone'].zero_grad()
-            optimizers['module'].zero_grad()
+
             loss.backward()
             optimizers['backbone'].step()
             optimizers['module'].step()
@@ -160,6 +161,8 @@ class LearningLoss(Strategy):
 
             accFinal += torch.sum((torch.max(scores,1)[1] == y).float()).data.item()
             accLoss += loss.item()
+            if batch_idx % 10 == 0:
+                print ("[Batch={:03d}] [Loss={:.2f}]".format(batch_idx, loss))
             # clamp gradients, just in case
             for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
         return accFinal / len(loader_tr.dataset.X), accLoss
@@ -187,36 +190,57 @@ class LearningLoss(Strategy):
         optim_backbone = optim.SGD(self.clf.parameters(), lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
         # sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
         recorder = RecorderMeter(n_epoch)
+        epoch_time = AverageMeter()
+        print("current:",len(self.X[idxs_train]))
         for batch_idx, (x, y, idxs) in enumerate(loader_tr):
             x, y = Variable(x.to(self.device) ), Variable(y.to(self.device) )
             scores, e1, features = self.clf(x,intermediate = True)
             break
+        loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),
+                                            transform=transform), 
+                                    shuffle=True,
+                                    pin_memory=True,
+                                    # sampler = DistributedSampler(train_data),
+                                    worker_init_fn=self.seed_worker,
+                                    generator=self.g,
+                                    **self.args.loader_tr_args)  
+
         # for f in features:
         #     print(f.size())
         self.loss_module = LossNet(features).to(self.device) 
         optim_module = optim.SGD(self.loss_module.parameters(), lr=LR,
                                  momentum=MOMENTUM, weight_decay=WDECAY)
-        sched_module = lr_scheduler.MultiStepLR(optim_module, milestones=MILESTONES)
-
         optimizers = {'backbone': optim_backbone, 'module': optim_module}
-        schedulers = {'module': sched_module}
+
         
         
 
-        epoch = 1
+        epoch = 0
         accCurrent = 0.
         while epoch < n_epoch:
+            ts = time.time()
             # schedulers['backbone'].step()
+            need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (n_epoch - epoch))
+            need_time = '[{} Need: {:02d}:{:02d}:{:02d}]'.format(self.args.strategy, need_hour, need_mins, need_secs)
             accCurrent,accLoss = self.ll_train(epoch, loader_tr, optimizers, criterion)
             test_acc= self.predict(self.X_te, self.Y_te)
             recorder.update(epoch, accLoss, accCurrent, 0, test_acc)
             epoch += 1
             current_learning_rate, _ = adjust_learning_rate(optimizers['backbone'], epoch, self.args.gammas, self.args.schedule, self.args)
-            schedulers['module'].step()
-            print(str(epoch) + ' training accuracy: ' + str(accCurrent),'lr',current_learning_rate, flush=True)
-            if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
-                self.clf = self.net.apply(weight_reset)
-        
+            adjust_learning_rate(optimizers['module'], epoch, self.args.gammas, self.args.schedule, self.args)
+            epoch_time.update(time.time() - ts)
+            print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
+                                                                                   need_time, current_learning_rate
+                                                                                   ) \
+                + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
+                                                               1. - recorder.max_accuracy(False)))
+            # print(str(epoch) + ' training accuracy: ' + str(accCurrent),'lr',current_learning_rate, flush=True)
+            # if (epoch % 50 == 0) and (accCurrent < 0.2):  # reset if not converging
+            #     self.clf = self.net.apply(weight_reset)
+                
+        if self.args.save_model:
+            self.save_model()
+
         return recorder.max_accuracy(istrain=False)
 
     def get_uncertainty(self,models, unlabeled_loader):
