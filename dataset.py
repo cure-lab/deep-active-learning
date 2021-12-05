@@ -21,11 +21,41 @@ def get_dataset(name, path):
         return get_CIFAR10(path)
     elif name.lower() == 'gtsrb':
         return get_GTSRB(path)
+    elif name.lower() == 'tinyimagenet':
+        return get_tinyImageNet(path)
 
+
+def get_tinyImageNet(path):
+    raw_tr = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/train')
+    raw_te = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/val')
+    X_tr,Y_tr,X_te, Y_te = [],[],[],[]
+    # 100000 train 10000 test
+    # print(np.array(raw_tr[0][0]).shape)
+    count=0
+    coun_list = [1000*(x+1) for x in range(100)]
+    for ct in coun_list:
+        # Accelerate by dividing
+        while count < ct:
+            image,target = raw_tr[count]
+            X_tr.append(np.array(image))
+            Y_tr.append(target)
+            count += 1
+
+    count=0
+    coun_list = [1000*(x+1) for x in range(10)]
+    for ct in coun_list:
+        while count < ct:
+            image,target = raw_tr[count]
+            X_te.append(np.array(image))
+            Y_te.append(target)
+            count += 1
+
+    return np.array(X_tr), np.array(Y_tr), np.array(X_te), np.array(Y_te)
 
 def get_MNIST(path):
     raw_tr = datasets.MNIST(path + '/mnist', train=True, download=True)
     raw_te = datasets.MNIST(path + '/mnist', train=False, download=True)
+    print(type(raw_tr))
     X_tr = raw_tr.data
     Y_tr = raw_tr.targets
     X_te = raw_te.data
@@ -54,6 +84,7 @@ def get_CIFAR10(path):
     data_tr = datasets.CIFAR10(path + '/cifar10', train=True, download=True)
     data_te = datasets.CIFAR10(path + '/cifar10', train=False, download=True)
     X_tr = data_tr.data
+    # print(np.array(X_tr[0]).shape)
     Y_tr = torch.from_numpy(np.array(data_tr.targets))
     X_te = data_te.data
     Y_te = torch.from_numpy(np.array(data_te.targets))
@@ -82,6 +113,8 @@ def get_handler(name):
     elif name.lower() == 'cifar10':
         return DataHandler3
     elif name.lower() == 'gtsrb':
+        return DataHandler3
+    elif name.lower() == 'tinyimagenet':
         return DataHandler3
     else:
         return DataHandler4
@@ -354,3 +387,5 @@ class Wa_datahandler3(Dataset):
             x_2 = self.transform(x_2)
 
         return index,x_1,y_1,x_2,y_2
+
+# get_CIFAR10('./dataset')
