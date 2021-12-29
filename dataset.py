@@ -160,7 +160,8 @@ def get_wa_handler(name):
         return  Wa_datahandler3
     elif name.lower() == 'mnist':
         return Wa_datahandler1
-
+    elif name.lower() == 'gtsrb':
+        return Wa_datahandler3
 
 
 class Wa_datahandler1(Dataset):

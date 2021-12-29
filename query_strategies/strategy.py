@@ -158,11 +158,6 @@ class Strategy:
 
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
 
-                # The converge condition 
-                if abs(previous_loss - train_los) < 0.0005:
-                    break
-                else:
-                    previous_loss = train_los
 
             # self.save_tta_values(self.get_tta_values())
             if self.args.save_model:

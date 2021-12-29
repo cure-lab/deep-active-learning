@@ -312,11 +312,6 @@ class semi_Strategy:
                 # self.save_tta_loss_train_predict_values(self.get_tta_values(),train_los,ce_loss, epoch,train_acc,test_acc)
 
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
-                # The converge condition 
-                if abs(previous_loss - train_los) < 0.0001:
-                    break
-                else:
-                    previous_loss = train_los
 
             self.clf = self.clf.module
             # self.save_tta_values(self.get_tta_values())

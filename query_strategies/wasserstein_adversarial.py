@@ -110,9 +110,11 @@ class WAAL(Strategy):
         # gamma_ratio = 1
 
         # Data-loading (Redundant Trick)
-        transform = self.args.transform_tr if not self.pretrained else None        
-        loader_tr = DataLoader(self.train_handler(self.X[idxs_lb_train],self.Y[idxs_lb_train],self.X[idx_ulb_train],self.Y[idx_ulb_train],
-                transform = transform), shuffle= True, **self.args.loader_tr_args)
+        transform = self.args.transform_tr        
+        loader_tr = DataLoader(self.train_handler(self.X[idxs_lb_train], 
+                self.Y[idxs_lb_train], self.X[idx_ulb_train], self.Y[idx_ulb_train],
+                transform = transform), 
+                shuffle= True, **self.args.loader_tr_args)
 
         recorder = RecorderMeter(n_epoch)
         epoch_time = AverageMeter()
@@ -239,12 +241,6 @@ class WAAL(Strategy):
                                                     1. - recorder.max_accuracy(False)))
     
     
-            accCurrent = acc
-            if abs(accCurrent - accOld) <= 0.0005:
-                break
-            else:
-                accOld = accCurrent
-
         recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
         best_train_acc = recorder.max_accuracy(istrain=False)
         return best_train_acc

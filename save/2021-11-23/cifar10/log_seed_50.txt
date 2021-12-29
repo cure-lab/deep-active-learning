@@ -1,1 +1,2 @@
-logging...
+
+==>>[2021-11-24 12:13:06] [Epoch=087/150] [Need: 00:46:21] [LR=0.0100] [Best : Train Accuracy=0.87, Error=0.13]
