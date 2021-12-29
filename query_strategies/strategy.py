@@ -125,7 +125,7 @@ class Strategy:
             transform = self.args.transform_tr if not self.pretrained else None
 
             train_data = self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train], 
-                                torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
+                                torch.Tensor(self.Y[idxs_train]).long() if type(self.Y) is np.ndarray else  torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
                                     transform=transform)
 
             loader_tr = DataLoader(train_data, 

@@ -241,9 +241,15 @@ class WAAL(Strategy):
                                                     1. - recorder.max_accuracy(False)))
     
     
+            accCurrent = acc
+            # if abs(accCurrent - accOld) <= 0.0005:
+            #     break
+            # else:
+            #     accOld = accCurrent
+
         recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
-        best_train_acc = recorder.max_accuracy(istrain=False)
-        return best_train_acc
+        test_acc = recorder.max_accuracy(istrain=False)
+        return test_acc
         
     def predict(self,X,Y):
         print ("start to predict...")

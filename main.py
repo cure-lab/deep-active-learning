@@ -196,6 +196,21 @@ args_pool = {'mnist':
                                     transforms.Normalize([0.3337, 0.3064, 0.3171], [0.2672, 0.2564, 0.2629])]),
                  'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
+                },
+            'tinyimagenet': 
+               {
+                'n_class':200,
+                'channels':3,
+                'transform_tr': transforms.Compose([
+                                    transforms.RandomCrop(size = 64, padding=4),
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(), 
+                                    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
+                 'transform_te': transforms.Compose([
+                                    transforms.ToTensor(), 
+                                    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
+                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
+                 'loader_te_args':{'batch_size': 512, 'num_workers': 8},
                 }
         }
 
