@@ -19,7 +19,7 @@ from .learning_loss_for_al import LearningLoss
 from .vaal import VAAL
 from .batch_active_learning_at_scale import ClusterMarginSampling
 # from .batch_BALD import BatchBALD
-from .ensemble import Ensemble
+from .ensemble import ensemble
 from .uncertainGCN import uncertainGCN
 from .coreGCN import coreGCN
 from .mcadl import MCADL
@@ -30,4 +30,4 @@ from .ssl_rand import ssl_Random
 from .ssl_diff2augkmeans import ssl_Diff2AugKmeans
 from .ssl_diff2augdirect import ssl_Diff2AugDirect
 from .ssl_consistency import ssl_Consistency
-from .uda import ssl_UDA
+# from .uda import ssl_UDA

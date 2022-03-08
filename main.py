@@ -18,7 +18,7 @@ from utils import print_log
 # import torch.distributed as dist
 
 # code based on https://github.com/ej0cl6/deep-active-learning"
-
+os.environ['CUBLAS_WORKSPACE_CONFIG']= ':16:8'
 
 query_strategies_name = sorted(name for name in query_strategies.__dict__
                      if callable(query_strategies.__dict__[name]))
@@ -41,13 +41,13 @@ parser.add_argument('--nEmb',  type=int, default=256,
 parser.add_argument('--rand_idx', type=int, default=1,
                     help='the index of the repeated experiments', )
 parser.add_argument('--manualSeed', type=int, default=None, help='manual seed')
-parser.add_argument("-t","--total", action='store_true',
+parser.add_argument("-t","--full", action='store_true',
                     help="Training on the entire dataset")
 
 # model and data
 parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str)
 parser.add_argument('--dataset', help='dataset (non-openML)', type=str, default='')
-parser.add_argument('--data_path', help='data path', type=str)
+parser.add_argument('--data_path', help='data path', type=str, default='') #Dataset path here
 parser.add_argument('--save_path', help='result save save_dir', default='./save')
 parser.add_argument('--save_file', help='result save save_dir', default='result.csv')
 
@@ -75,7 +75,7 @@ parser.add_argument('--optimizer',
                     type=str,
                     default='SGD',
                     choices=['SGD', 'Adam', 'YF'])
-parser.add_argument('--n_epoch', type=int, default=200,
+parser.add_argument('--n_epoch', type=int, default=100,
                     help='number of training epochs in each iteration')
 parser.add_argument('--schedule',
                     type=int,
@@ -96,9 +96,12 @@ parser.add_argument('--pretrained',
 parser.add_argument('--save_model', 
                     action='store_true',
                     default=False, help='save model every steps')
+parser.add_argument('--save_tta', 
+                    action='store_true',
+                    default=False, help='save tta every epochs')
 parser.add_argument('--load_model', 
-                    type=int,
-                    default=0, help='load model from save_path, with name "strategy_model_epoch_parameter.pkl"')
+                    type=str,
+                    help='load model from save_path, with name "strategy_model_epoch_parameter.pkl"')
 # automatically set
 # parser.add_argument("--local_rank", type=int)
 
@@ -131,6 +134,7 @@ args_pool = {'mnist':
                 { 
                  'n_class':10,
                  'channels':1,
+                 'size': 28,
                  'transform_tr': transforms.Compose([
                                 transforms.RandomHorizontalFlip(),
                                 transforms.ToTensor(), 
@@ -144,6 +148,7 @@ args_pool = {'mnist':
                 {
                  'n_class':10,
                 'channels':1,
+                'size': 28,
                 'transform_tr': transforms.Compose([
                                 transforms.RandomHorizontalFlip(),
                                 transforms.ToTensor(), 
@@ -157,6 +162,7 @@ args_pool = {'mnist':
                 {
                  'n_class':10,
                 'channels':3,
+                'size': 32,
                 'transform_tr': transforms.Compose([ 
                                     transforms.RandomCrop(size = 32, padding=4),
                                     transforms.RandomHorizontalFlip(),
@@ -171,6 +177,7 @@ args_pool = {'mnist':
                 {
                  'n_class':10,
                  'channels':3,
+                 'size': 32,
                  'transform_tr': transforms.Compose([
                                     transforms.RandomCrop(size = 32, padding=4),
                                     transforms.RandomHorizontalFlip(),
@@ -184,7 +191,8 @@ args_pool = {'mnist':
             'gtsrb': 
                {
                  'n_class':43,
-                'channels':3,
+                 'channels':3,
+                 'size': 32,
                  'transform_tr': transforms.Compose([
                                     transforms.RandomCrop(size = 32, padding=4),
                                     transforms.RandomHorizontalFlip(),
@@ -201,6 +209,7 @@ args_pool = {'mnist':
                {
                 'n_class':200,
                 'channels':3,
+                'size': 64,
                 'transform_tr': transforms.Compose([
                                     transforms.RandomCrop(size = 64, padding=4),
                                     transforms.RandomHorizontalFlip(),
@@ -236,6 +245,7 @@ def main():
     # load the dataset specific parameters
     dataset_args = args_pool[args.dataset]
     args.n_class = dataset_args['n_class']
+    args.img_size = dataset_args['size']
     args.channels = dataset_args['channels']
     args.transform_tr = dataset_args['transform_tr']
     args.transform_te = dataset_args['transform_te']
@@ -259,7 +269,7 @@ def main():
 
     args.nEnd =  args.nEnd if args.nEnd != -1 else 100
     args.nQuery = args.nQuery if args.nQuery != -1 else (args.nEnd - args.nStart)
-    if args.total:
+    if args.full:
         # train the model with full data
         NUM_INIT_LB = n_pool
         NUM_QUERY = 0
@@ -274,14 +284,6 @@ def main():
     
     print_log("[init={:02d}] [query={:02d}] [end={:02d}]".format(NUM_INIT_LB, NUM_QUERY, int(args.nEnd*n_pool/100)), log)
 
-
-    # generate initial labeled pool
-    idxs_lb = np.zeros(n_pool, dtype=bool)
-    idxs_tmp = np.arange(n_pool)
-    np.random.shuffle(idxs_tmp)
-    idxs_lb[idxs_tmp[:NUM_INIT_LB]] = True
-
-
     # load specified network
     if args.strategy == 'ensemble':
         net = [mymodels.__dict__[args.model](n_class=args.n_class) for _ in range(args.n_ensembles)]
@@ -289,6 +291,18 @@ def main():
         net = [mymodels.__dict__[args.model](n_class=args.n_class) for _ in range(2)]
     else:
         net = mymodels.__dict__[args.model](n_class=args.n_class)
+
+    if args.load_model:
+        idxs_lb = np.load(os.path.join(args.save_path, args.strategy+'_'+args.model+'_'+args.load_model+'_'+str(args.manualSeed)+'.npy'))
+        if len(np.arange(n_pool)[idxs_lb]) != NUM_INIT_LB:
+            raise ValueError("Number of labeled data should equal to start number")
+        
+    else:
+        idxs_lb = np.zeros(n_pool, dtype=bool)
+        idxs_tmp = np.arange(n_pool)
+        np.random.shuffle(idxs_tmp)
+        idxs_lb[idxs_tmp[:NUM_INIT_LB]] = True
+        
 
     # selection strategy
     if args.strategy == 'ActiveLearningByLearning': # active learning by learning (albl)
@@ -308,7 +322,10 @@ def main():
 
     # round 0 accuracy
     alpha = 2e-3
-    strategy.train(alpha=alpha, n_epoch=args.n_epoch)
+    if args.load_model:
+        strategy.load_model()
+    else:
+        strategy.train(alpha=alpha, n_epoch=args.n_epoch)
     test_acc= strategy.predict(X_te, Y_te)
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = test_acc
@@ -363,10 +380,6 @@ def main():
                             't_iter',
                             t_iter
                             ])
-        
-        if sum(~strategy.idxs_lb) <int(args.nQuery*n_pool/100): 
-            print('too few remaining points to query')
-            break
 
     print_log('success!', log)
 

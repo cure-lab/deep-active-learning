@@ -208,7 +208,7 @@ class LearningLoss(Strategy):
         # for f in features:
         #     print(f.size())
         self.loss_module = LossNet(features).to(self.device) 
-        optim_module = optim.SGD(self.loss_module.parameters(), lr=LR,
+        optim_module = optim.SGD(self.loss_module.parameters(), lr=self.args.lr,
                                  momentum=MOMENTUM, weight_decay=WDECAY)
         optimizers = {'backbone': optim_backbone, 'module': optim_module}
 

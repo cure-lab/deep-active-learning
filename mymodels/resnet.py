@@ -37,7 +37,6 @@ class BasicBlock(nn.Module):
         out = F.relu(out)
         return out
 
-
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -101,7 +100,7 @@ class resnet_clf(nn.Module):
     def __init__(self, block, n_class=10, input_64 =False):
         super(resnet_clf, self).__init__()
         if input_64:
-            self.linear = nn.Linear(128 * 4, n_class)
+            self.linear = nn.Linear(128 * block.expansion * 4, n_class)
         else:
             self.linear = nn.Linear(128 * block.expansion, n_class)
 

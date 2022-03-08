@@ -108,6 +108,7 @@ class VAE(nn.Module):
     def __init__(self, z_dim=32, nc=3):
         super(VAE, self).__init__()
         self.z_dim = z_dim
+        self.in_dim = z_dim/32
         self.nc = nc
         self.encoder = nn.Sequential(
             nn.Conv2d(nc, 128, 4, 2, 1, bias=False),  # B,  128, 32, 32
@@ -122,14 +123,14 @@ class VAE(nn.Module):
             nn.Conv2d(512, 1024, 4, 2, 1, bias=False),  # B, 1024,  4,  4
             nn.BatchNorm2d(1024),
             nn.ReLU(True),
-            View((-1, 1024 * 2 * 2)),  # B, 1024*4*4
+            View((-1, 1024 * 2 * self.in_dim * 2 * self.in_dim)),  # B, 1024*4*4
         )
 
-        self.fc_mu = nn.Linear(1024 * 2 * 2, z_dim)  # B, z_dim
-        self.fc_logvar = nn.Linear(1024 * 2 * 2, z_dim)  # B, z_dim
+        self.fc_mu = nn.Linear(1024 * 2 * self.in_dim * 2 * self.in_dim, z_dim)  # B, z_dim
+        self.fc_logvar = nn.Linear(1024 * 2 * self.in_dim * 2 * self.in_dim, z_dim)  # B, z_dim
         self.decoder = nn.Sequential(
-            nn.Linear(z_dim, 1024 * 4 * 4),  # B, 1024*8*8
-            View((-1, 1024, 4, 4)),  # B, 1024,  8,  8
+            nn.Linear(z_dim, 1024 * 4 * self.in_dim * 4 * self.in_dim),  # B, 1024*8*8
+            View((-1, 1024, 4 * self.in_dim, 4 * self.in_dim)),  # B, 1024,  8,  8
             nn.ConvTranspose2d(1024, 512, 4, 2, 1, bias=False),  # B,  512, 16, 16
             nn.BatchNorm2d(512),
             nn.ReLU(True),
@@ -277,8 +278,8 @@ class VAAL(Strategy):
         global device
         device = self.device
         if self.args.channels == 3:
-            self.vae = VAE(32).to(device)
-            self.discriminator = Discriminator(32).to(device)
+            self.vae = VAE(self.args.img_size).to(device)
+            self.discriminator = Discriminator(self.args.img_size).to(device)
         else:
             self.vae = VAE_MNIST().to(device)
             self.discriminator = Discriminator_MNIST().to(device)
@@ -461,8 +462,8 @@ class VAAL(Strategy):
         unlabeled_data = self.read_data(unlabeled_loader, labels=False)
 
         if self.args.channels == 3:
-            self.vae = VAE(32).to(device)
-            self.discriminator = Discriminator(32).to(device)
+            self.vae = VAE(self.args.img_size).to(device)
+            self.discriminator = Discriminator(self.args.img_size).to(device)
         else:
             self.vae = VAE_MNIST().to(device)
             self.discriminator = Discriminator_MNIST().to(device)
@@ -504,6 +505,8 @@ class VAAL(Strategy):
             # else: 
             #     lossOld = train_loss
         best_test_acc = recorder.max_accuracy(istrain=False)
+        if self.args.save_model:
+            self.save_model()
         return best_test_acc    
 
     def query(self, n):

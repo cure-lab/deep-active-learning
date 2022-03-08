@@ -20,7 +20,7 @@ class AcquisitionBatch:
 
 class BatchBALD(Strategy):
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
-        super(BatchBALD_reduce, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
+        super(BatchBALD, self).__init__(X, Y, X_te, Y_te, idxs_lb, net, handler, args)
         self.net = net
         self.args = args
 
@@ -33,7 +33,7 @@ class BatchBALD(Strategy):
         with torch.no_grad():
             for i in range(K):
                 for x, y, idxs in loader_te:
-                    x, y = Variable(x.cuda()), Variable(y.cuda())
+                    x, y = Variable(x.to(self.device)), Variable(y.to(self.device))
                     out, e1 = self.clf(x)
                    
                     probs[i][idxs] += F.softmax(out, dim=1).cpu().data

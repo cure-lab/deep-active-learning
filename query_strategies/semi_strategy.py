@@ -9,11 +9,12 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from copy import deepcopy
-from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time
+from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time, adjust_learning_rate
 import time
 import sys, os
 from torchvision.utils import save_image
 from tqdm import tqdm
+from .util import AugMixDataset,TransformTwice,linear_rampup,interleave_offsets,interleave,WeightEMA
 
 torch.backends.cudnn.benchmark = True
 
@@ -21,40 +22,6 @@ lambda_u = 100
 ema_decay = 0.999
 T = 0.5
 alpha = 0.75
-
-class TransformTwice:
-    def __init__(self, transform):
-        self.transform = transform
-
-    def __call__(self, inp):
-        out1 = self.transform(inp)
-        out2 = self.transform(inp)
-        return out1, out2
-
-def linear_rampup(current, rampup_length=200):
-    if rampup_length == 0:
-        return 1.0
-    else:
-        current = np.clip(current / rampup_length, 0.0, 1.0)
-        return float(current)
-
-def interleave_offsets(batch, nu):
-    groups = [batch // (nu + 1)] * (nu + 1)
-    for x in range(batch - sum(groups)):
-        groups[-x - 1] += 1
-    offsets = [0]
-    for g in groups:
-        offsets.append(offsets[-1] + g)
-    assert offsets[-1] == batch
-    return offsets
-
-def interleave(xy, batch):
-    nu = len(xy) - 1
-    offsets = interleave_offsets(batch, nu)
-    xy = [[v[offsets[p]:offsets[p + 1]] for p in range(nu + 1)] for v in xy]
-    for i in range(1, nu + 1):
-        xy[0][i], xy[i][i] = xy[i][i], xy[0][i]
-    return [torch.cat(v, dim=0) for v in xy]
 
 class SemiLoss(object):
     def __call__(self, outputs_x, targets_x, outputs_u, targets_u, epoch):
@@ -64,30 +31,6 @@ class SemiLoss(object):
         Lu = torch.mean((probs_u - targets_u)**2)
 
         return Lx, Lu, lambda_u * linear_rampup(epoch)
-
-class WeightEMA(object):
-    def __init__(self, model, ema_model, alpha ,lr):
-        self.model = model
-        self.ema_model = ema_model
-        self.alpha = alpha
-        self.params = list(model.state_dict().values())
-        self.ema_params = list(ema_model.state_dict().values())
-        self.wd = 0.02 * lr
-
-        for param, ema_param in zip(self.params, self.ema_params):
-            param.data.copy_(ema_param.data)
-
-    def step(self):
-        one_minus_alpha = 1.0 - self.alpha
-        for param, ema_param in zip(self.params, self.ema_params):
-            if ema_param.dtype==torch.float32:
-                ema_param.mul_(self.alpha)
-                ema_param.add_(param * one_minus_alpha)
-                # customized weight decay
-                param.mul_(1 - self.wd)
-
-    def set_wd(self,lr):
-        self.wd = 0.02 * lr
 
 class semi_Strategy:
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
@@ -125,8 +68,6 @@ class semi_Strategy:
         train_loss = 0.
         labeled_train_iter = iter(loader_labeled)
         unlabeled_train_iter = iter(loader_unlabeled)
-        batch_time = AverageMeter()
-        data_time = AverageMeter()
         losses = AverageMeter()
         losses_x = AverageMeter()
         losses_u = AverageMeter()
@@ -138,24 +79,24 @@ class semi_Strategy:
            
             try:
                 inputs_x, targets_x, _ = labeled_train_iter.next()
-                out, e1 = self.clf(inputs_x.cuda())
+                out, e1 = self.clf(inputs_x.to(self.device))
                 loss = F.cross_entropy(out, targets_x.to(self.device))
 
                 ce_loss += loss.item()
-                accFinal += torch.sum((torch.max(out,1)[1] == targets_x.cuda()).float()).data.item()
+                accFinal += torch.sum((torch.max(out,1)[1] == targets_x.to(self.device)).float()).data.item()
                 batch_size = inputs_x.size(0)
-                targets_x = torch.zeros(batch_size, 10).scatter_(1, targets_x.view(-1,1).long(), 1)
+                targets_x = torch.zeros(batch_size, self.args.n_class).scatter_(1, targets_x.view(-1,1).long(), 1)
                 inputs_x, targets_x = inputs_x.to(self.device), targets_x.to(self.device) 
             except:
                 labeled_train_iter = iter(loader_labeled)
                 inputs_x, targets_x, _ = labeled_train_iter.next()
-                out, e1 = self.clf(inputs_x.cuda())
+                out, e1 = self.clf(inputs_x.to(self.device))
                 loss = F.cross_entropy(out, targets_x.to(self.device))
                 Store_TTA = False
                 ce_loss += loss.item()
-                accFinal += torch.sum((torch.max(out,1)[1] == targets_x.cuda()).float()).data.item()
+                accFinal += torch.sum((torch.max(out,1)[1] == targets_x.to(self.device)).float()).data.item()
                 batch_size = inputs_x.size(0)
-                targets_x = torch.zeros(batch_size, 10).scatter_(1, targets_x.view(-1,1).long(), 1)
+                targets_x = torch.zeros(batch_size, self.args.n_class).scatter_(1, targets_x.view(-1,1).long(), 1)
                 inputs_x, targets_x = inputs_x.to(self.device), targets_x.to(self.device)
             
             
@@ -205,10 +146,10 @@ class semi_Strategy:
             mixed_input = interleave(mixed_input, batch_size)
 
             logits = [self.clf(mixed_input[0])[0]]
-            # print(logits[0].size(0))
+
             for input in mixed_input[1:]:
                 logits.append(self.clf(input)[0])
-            # print(len(logits))
+
             # put interleaved samples back
             logits = interleave(logits, batch_size)
             logits_x = logits[0]
@@ -309,8 +250,7 @@ class semi_Strategy:
                 
                 
                 test_acc = self.predict(self.X_te, self.Y_te)
-                # self.save_tta_loss_train_predict_values(self.get_tta_values(),train_los,ce_loss, epoch,train_acc,test_acc)
-
+                
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
                 # The converge condition 
                 if abs(previous_loss - train_los) < 0.0001:
@@ -319,9 +259,12 @@ class semi_Strategy:
                     previous_loss = train_los
 
             self.clf = self.clf.module
-            # self.save_tta_values(self.get_tta_values())
             if self.args.save_model:
                 self.save_model()
+
+        if self.args.save_tta:
+            test_acc = self.predict(self.X_te, self.Y_te)
+            self.save_tta_values(self.get_tta_values(),train_los,epoch, train_acc, test_acc)
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
@@ -353,6 +296,30 @@ class semi_Strategy:
             test_acc = 1. * correct / len(Y)
    
         return test_acc
+
+    def get_prediction(self, X, Y):
+        # add support for pretrained model
+        transform=self.args.transform_te if not self.pretrained else self.preprocessing
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True, 
+                        shuffle=False, **self.args.loader_te_args)
+
+        P = torch.zeros(len(X)).long().to(self.device)
+
+        if not self.pretrained:
+            self.ema_model.eval()
+        else:
+            self.ema_model.classifier.eval()
+
+        correct = 0
+        with torch.no_grad():
+            for x, y, idxs in loader_te:
+                x, y = x.to(self.device), y.to(self.device) 
+                out, e1 = self.ema_model(x)
+                pred = out.max(1)[1]     
+                P[idxs] = pred           
+                correct +=  (y == pred).sum().item() 
+   
+        return P
 
     def predict_prob(self, X, Y):
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
@@ -495,195 +462,87 @@ class semi_Strategy:
                             embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (-1 * batchProbs[j][c])
             return torch.Tensor(embedding)
 
-    def get_tta_values(self):    
-        # apply multiple data augmentation and calculate the variance
-        # TO BE TESTED
-        from torchvision.utils import make_grid
 
-        n_class, n_iters = 10, 32 
+    def save_model(self):
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(float(100*labeled/len(self.X)))
+        torch.save(self.ema_model, os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.pkl'))
+        path = os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.npy')
+        np.save(path,self.idxs_lb)
+        print('save to ',os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage))
+
+    def load_model(self):
+        self.ema_model = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+str(self.args.load_model)+'.pkl'))
+
+    def get_tta_values(self,save_info=False):    
+        # Save Energy, Energy Variance, Smoothness, Entropy for analysis 
+        transform=self.args.transform_te if not self.pretrained else self.preprocessing
+        loader_te = DataLoader(self.handler(self.X_te, self.Y_te, transform=transform), pin_memory=True, 
+                        shuffle=False, **self.args.loader_te_args)
+        self.ema_model.eval()
+        origin_Energy = torch.zeros(len(self.Y_te))
+        origin_Entropy = torch.zeros(len(self.Y_te))
+        origin_Confidence = torch.zeros(len(self.Y_te))
+        origin_Margin = torch.zeros(len(self.Y_te))
+        with torch.no_grad():
+            for x, y, idxs in loader_te:
+                x, y = x.to(self.device), y.to(self.device) 
+                out, e1 = self.ema_model(x)
+                prob = F.softmax(out, dim=1)
+                log_probs = torch.log(prob)
+                origin_Entropy[idxs] = (-prob*log_probs).cpu().sum(1)
+                origin_Confidence[idxs] = prob.max(1)[0].cpu()
+                probs_sorted, _ = prob.sort(descending=True)
+                origin_Margin[idxs] = probs_sorted[:, 0].cpu() - probs_sorted[:,1].cpu()
+                origin_Energy[idxs] = -np.log(np.exp(out.data.cpu()).sum(1))
+        if save_info:
+            labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+            labeled_percentage = str(int(100*labeled/len(self.X)))
+            np.save(os.path.join(self.args.save_path,'ECM_%s_%s.npy'%(self.args.strategy,labeled_percentage)), np.array([origin_Entropy,origin_Confidence,origin_Margin]))
+
+        origin_Energy = origin_Energy.numpy()
+        n_class, n_iters = self.args.n_class, 32 
+        batch_size = 100
+        n_image = n_iters + 1
         tta_values = []
+        entropy_values = []
+        energy_Var = []
+        energyVar_values = []
         augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
         augtest_loader = torch.utils.data.DataLoader(
                         augset,
-                        batch_size=1,
+                        batch_size=batch_size,
                         shuffle=False,
                         num_workers=self.args.loader_te_args['num_workers'],
                         pin_memory=True)
         self.ema_model.eval()
-        tta_values_correct = []
-        tta_values_wrong = []
-        for i, all_images in tqdm(enumerate(augtest_loader)):
-            # print("progress {}/{}".format(i, len(self.X_te)))
+
+        for i, (all_images,idx) in tqdm(enumerate(augtest_loader)):
             all_logits, _ = self.ema_model(torch.cat(all_images, 0).to(self.device))
-            preds = torch.nn.functional.softmax(all_logits.detach().cpu(), dim=1)
-            y_pred = preds.sum(0)  
-            y_pred = int(y_pred.max(0)[1].cpu()) 
-            prob = preds.mean(0)
+            for j in range(batch_size):
+                logit = all_logits[j*n_image:(j+1)*n_image]
+                energy_var = (-np.log(np.exp(logit.data.cpu()).sum(1))).var()
+                energy_Var.append(energy_var)
+                energyVar = energy_var / (origin_Energy[idx[j]]*origin_Energy[idx[j]])     
+                energyVar_values.append(energyVar.numpy())
+                preds = torch.nn.functional.softmax(logit.detach().cpu(), dim=1)
+                prob = preds.mean(0)
+                y_pred = preds.sum(0)  
+                y_pred = int(y_pred.max(0)[1].cpu()) 
+                var = preds.var(0).sum()
+                entropy = (-prob*np.log2(prob)).sum()
+                entropy_values.append(entropy)
+                tta_values.append(var)
 
-            var = preds.var(0).sum()
-            entropy = (-prob*np.log2(prob)).sum()
+        return np.array(origin_Energy).sum(), np.array(energyVar_values).sum(), np.array(tta_values).sum(), np.array(entropy_values).sum(),np.array(energy_Var).sum()
 
-            tta_values.append(var)
-            if y_pred == self.Y_te[i]:
-                tta_values_correct.append(var)
-            else:
-                tta_values_wrong.append(var)
-            # variance = preds.var(0).sum()
-            # tta_values.append(variance)
-            if i % 1000 == 0:
-                
-                # print ("size: ", len(all_images))
-                # print ("tensor size: ", torch.cat(all_images, 0).shape)
-                grid = make_grid(torch.cat(all_images, 0), nrow=len(all_images), padding=2)
-                save_image(grid, filename=os.path.join(self.args.save_path, 'img_augmentation_{}.png'.format(i)))
-
-
-        ### draw histgram
-        import matplotlib.pyplot as plt
-        tta_list = np.array(tta_values)
-        max_tta = tta_list.max()
-        gap = max_tta/20
-        print(max_tta,len(tta_values_correct), len(tta_values_wrong))
-        gap_list = [x*gap for x in range(20)]
-        distribute_list_c = [0 for x in range(20)]
-        distribute_list_w = [0 for x in range(20)]
-        for tta in tta_values_correct:
-            for i in range(19):
-                if tta > gap_list[i] and tta <= gap_list[i+1]:
-                    distribute_list_c[i] +=1
-        for tta in tta_values_wrong:
-            for i in range(19):
-                if tta > gap_list[i] and tta <= gap_list[i+1]:
-                    distribute_list_w[i] +=1
-        
-        gap_list = [str(gap)[1:5] for gap in gap_list]
-
-        plt.figure(figsize=(12,4))
-        plt.bar(gap_list, distribute_list_c)
-        plt.bar(gap_list, distribute_list_w,color = 'orange')
-        plt.savefig(fname=os.path.join(self.args.save_path, "hist_s%s.png"%str(self.args.load_model)))
-        print('TTA_values:', np.array(tta_values).sum())
-        return np.array(tta_values).sum()
-    
-    def save_tta_values(self,tta):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
-        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        f.write(str(labeled)+ '   ' + str(tta) +'\n')
-        f.close()
-    
-    def save_tta_acc_values(self,tta,acc):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
-        f.write(str(self.args.load_model)+ '   ' + str(tta)+ '   ' + str(acc) + '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
-        f.close()
-    
-    def save_tta_loss_values(self,tta,loss,iter):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_loss_value.txt'),'a')
+    def save_tta_values(self,tta,loss, iteration,train,predict):
+        f = open(os.path.join(self.args.save_path, self.args.strategy+'_TTA.txt'),'a')
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
         labeled_percentage = str(int(100*labeled/len(self.X)))
-        f.write(str(labeled_percentage)+ '   ' + str(iter) + '   ' + str(tta)+ '   ' + str(loss) + '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
+        f.write(str(labeled_percentage)+ '   ' + str(iteration) + '   ' + str(tta[0]) + '   ' + str(tta[1]) + '   ' + str(tta[2]) + '   ' + str(tta[3]) + '   ' + str(tta[4]) + '   '+ str(loss)  + '   ' + str(train) + '   '+ str(predict) + '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_TTA.txt'))
         f.close()
 
-    def save_tta_loss_train_predict_values(self,tta,loss,ce_loss, itera,train,predict):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_loss_value.txt'),'a')
-        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        labeled_percentage = str(int(100*labeled/len(self.X)))
-        print(str(labeled_percentage)+ '   ' + str(itera) + '   ' + str(tta)+ '   ' + str(loss) + '   ' + str(ce_loss) + '   ' + str(train) + '   '+ str(predict) + '\n')
-        f.write(str(labeled_percentage)+ '   ' + str(itera) + '   ' + str(tta)+ '   ' + str(loss) + '   ' + str(ce_loss) + '   ' + str(train) + '   '+ str(predict) + '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
-        f.close()
 
-    def save_model(self):
-        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        labeled_percentage = str(int(100*labeled/len(self.X)))
-        torch.save(self.ema_model, os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'.pkl'))
-        print('save to ',os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'.pkl'))
-
-    def load_model(self):
-        self.ema_model = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+'0.5'+'.pkl'))
-
-    def tta_test_from_load_model(self):
-        if self.args.load_model != 0:
-            self.load_model()
-        test_acc = self.predict(self.X_te, self.Y_te)
-        tta = self.get_tta_values()
-        self.save_tta_acc_values(tta,test_acc)
-        print(test_acc, tta)
-
-class AugMixDataset(torch.utils.data.Dataset):
-    """Dataset wrapper to perform AugMix augmentation."""
-    def __init__(self, dataset, preprocess, n_iters, no_jsd=False):
-        self.dataset = dataset
-        self.preprocess = preprocess
-        self.no_jsd = no_jsd
-        self.n_iters = n_iters
-
-    def __getitem__(self, i):
-        x = self.dataset[i]
-        if self.no_jsd:
-            return aug(x, self.preprocess)
-        else:
-            aug_image = [aug(x, self.preprocess) for i in range(self.n_iters)]
-            im_tuple = [self.preprocess(x)] + aug_image
-            return im_tuple
-
-    def __len__(self):
-        return len(self.dataset)
-
-def aug(image, preprocess):
-    """Perform AugMix augmentations and compute mixture.
-    Args:
-        image: PIL.Image input image
-        preprocess: Preprocessing function which should return a torch tensor.
-    Returns:
-        mixed: Augmented and mixed image.
-    """
-    from . import augmentations
-    from PIL import Image
-    image = Image.fromarray(image)
-    aug_list = augmentations.augmentations
-    # if args.all_ops:
-    #     aug_list = augmentations.augmentations_all
-    mixture_width, mixture_depth = 1, -1
-    aug_severity = 3
-    ws = np.float32(np.random.dirichlet([1] * mixture_width))
-    m = np.float32(np.random.beta(1, 1))
-
-    mix = torch.zeros_like(preprocess(image))
-    for i in range(mixture_width):
-        image_aug = image.copy()
-        depth = mixture_depth if mixture_depth > 0 else np.random.randint(
-                1, 4)
-        for _ in range(depth):
-            op = np.random.choice(aug_list)
-            image_aug = op(image_aug, aug_severity)
-        # Preprocessing commutes since all coefficients are convex
-        mix += ws[i] * preprocess(image_aug)
-
-    mixed = (1 - m) * preprocess(image) + m * mix
-    return np.array(mixed)
-
-def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    "Add by YU"
-    lr = args.lr
-    mu = args.momentum
-
-    if args.optimizer != "YF":
-        assert len(gammas) == len(
-            schedule), "length of gammas and schedule should be equal"
-        for (gamma, step) in zip(gammas, schedule):
-            if (epoch >= step):
-                lr = lr * gamma
-            else:
-                break
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-
-    elif args.optimizer == "YF":
-        lr = optimizer._lr
-        mu = optimizer._mu
-
-    return lr, mu
 

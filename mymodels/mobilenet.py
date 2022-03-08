@@ -45,17 +45,20 @@ class MobileNet(nn.Module):
             in_planes = out_planes
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.layers(out)
-        out = F.avg_pool2d(out, 2)
-        out = self.avgpool(out)
-        out = out.view(out.size(0), -1)
+    def forward(self, x,intermediate=False):
+        out1 = F.relu(self.bn1(self.conv1(x)))
+        out1 = self.layers(out1)
+        out2 = F.avg_pool2d(out2, 2)
+        out3 = self.avgpool(out2)
+        out3 = out.view(out3.size(0), -1)
         # print (out.shape)
         if self.dropout:
-            out = F.dropout(out, p=0.2, training=True)
+            out = F.dropout(out3, p=0.2, training=True)
         out1 = self.linear(out)
-        return out1, out
+        if intermediate:
+            return out1, out,[out1,out2,out3]
+        else:
+            return out1, out
 
 
 def test():
