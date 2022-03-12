@@ -401,9 +401,13 @@ class Strategy:
                         num_workers=self.args.loader_te_args['num_workers'],
                         pin_memory=True)
         self.clf.eval()
+        for k in range(batch_size):
+            for j in range(n_image):
+                new_idx.append(k+j*batch_size)
 
         for i, (all_images,idx) in tqdm(enumerate(augtest_loader)):
             all_logits, _ = self.clf(torch.cat(all_images, 0).to(self.device))
+            all_logits = all_logits[new_idx]
             for j in range(batch_size):
                 logit = all_logits[j*n_image:(j+1)*n_image]
                 energy_var = (-np.log(np.exp(logit.data.cpu()).sum(1))).var()
