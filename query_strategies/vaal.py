@@ -108,7 +108,7 @@ class VAE(nn.Module):
     def __init__(self, z_dim=32, nc=3):
         super(VAE, self).__init__()
         self.z_dim = z_dim
-        self.in_dim = z_dim/32
+        self.in_dim = z_dim//32
         self.nc = nc
         self.encoder = nn.Sequential(
             nn.Conv2d(nc, 128, 4, 2, 1, bias=False),  # B,  128, 32, 32
