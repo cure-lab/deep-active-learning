@@ -181,22 +181,22 @@ class ResNet(nn.Module):
         return self.embDim
 
 
-def ResNet18(n_class, bayesian):
+def ResNet18(n_class, bayesian=False):
     return ResNet(BasicBlock, [2,2,2,2], n_class=n_class, bayesian=bayesian)
 
-def ResNet34(n_class, bayesian):
+def ResNet34(n_class, bayesian=False):
     return ResNet(BasicBlock, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet50(n_class, bayesian):
+def ResNet50(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet101(n_class, bayesian):
+def ResNet101(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,4,23,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet152(n_class, bayesian):
+def ResNet152(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,8,36,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet18_64(n_class, bayesian):
+def ResNet18_64(n_class, bayesian=False):
     return ResNet(BasicBlock, [2,2,2,2], n_class=n_class, bayesian=bayesian, input_64=True)
 
 def test():
