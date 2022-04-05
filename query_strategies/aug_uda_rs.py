@@ -137,17 +137,17 @@ class SubPolicy(object):
 
 
 class TransformUDA(object):
-    def __init__(self, mean, std):
+    def __init__(self, mean, std, size, channel):
         self.org = transforms.Compose([
-            transforms.RandomCrop(size=32, padding=4),
+            transforms.RandomCrop(size=size, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)
         ])
         self.aug = transforms.Compose([
-            transforms.RandomCrop(size=32, padding=4),
+            transforms.RandomCrop(size=size, padding=4),
             transforms.RandomHorizontalFlip(),
-            RandAugment(),
+            RandAugment((128,) if channel==1 else (128, 128, 128)),
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)
         ])
@@ -285,9 +285,12 @@ class uda_rs(Strategy):
                                            generator=self.g,
                                            **self.args.loader_tr_args)
         if idxs_unlabeled.shape[0] != 0:
+            transform = self.args.transform_te if not self.pretrained else None
+            mean = self.args.normalize['mean']
+            std = self.args.normalize['std']
             train_data_unlabeled = self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled],
                                                 torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
-                                                transform=TransformUDA(mean=(0.4914, 0.4822, 0.4465), std=(0.2470, 0.2435, 0.2616)))
+                                                transform=TransformUDA(mean=mean, std=std, size=self.args.img_size,channel=self.args.channels))
             loader_tr_unlabeled = DataLoader(train_data_unlabeled,
                                              shuffle=True,
                                              pin_memory=True,
@@ -295,6 +298,8 @@ class uda_rs(Strategy):
                                              worker_init_fn=self.seed_worker,
                                              generator=self.g,
                                              **self.args.loader_tr_args)
+            
+            print(self.args.loader_tr_args)
             for epoch in range(n_epoch):
                 ts = time.time()
                 current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule,
@@ -328,7 +333,7 @@ class uda_rs(Strategy):
                 self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
-            self.save_tta_values(self.get_tta_values())
+            # self.save_tta_values(self.get_tta_values())
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc

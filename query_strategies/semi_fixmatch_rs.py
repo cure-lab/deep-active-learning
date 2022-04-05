@@ -16,7 +16,6 @@ import PIL.ImageEnhance
 import PIL.ImageDraw
 from PIL import Image
 
-
 pseudo_label_threshold = 0.95
 pseudo_label_temperature = 1
 unsup_ratio = 7
@@ -65,7 +64,7 @@ class RandAugmentMC(object):
         y1 = int(min(h, y0 + v))
         xy = (x0, y0, x1, y1)
         # gray
-        color = (127, 127, 127)
+        color = (127) if self.channels==1 else (127, 127, 127)
         img = img.copy()
         PIL.ImageDraw.Draw(img).rectangle(xy, color)
         return img
@@ -134,11 +133,13 @@ class RandAugmentMC(object):
         v = int(v * img.size[1])
         return img.transform(img.size, PIL.Image.AFFINE, (1, 0, 0, 0, 1, v))
 
-    def __init__(self, n, m):
+    def __init__(self, n, m, size,channels):
         assert n >= 1
         assert 1 <= m <= 10
         self.n = n
         self.m = m
+        self.size = size
+        self.channels = channels
         self.augment_pool = [
             (self.AutoContrast, None, None),
             (self.Brightness, 0.9, 0.05),
@@ -162,23 +163,23 @@ class RandAugmentMC(object):
             v = np.random.randint(1, self.m)
             if random.random() < 0.5:
                 img = op(img, v=v, max_v=max_v, bias=bias)
-        img = self.CutoutAbs(img, int(32*0.5))
+        img = self.CutoutAbs(img, int(self.size*0.5))
         return img
 
 
 class TransformUDA(object):
-    def __init__(self, mean, std):
+    def __init__(self, mean, std,size,channels):
         self.weak = transforms.Compose([
             transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop(size=32,
-                                  padding=int(32 * 0.125),
+            transforms.RandomCrop(size=size,
+                                  padding=int(size * 0.125),
                                   padding_mode='reflect')])
         self.strong = transforms.Compose([
             transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop(size=32,
-                                  padding=int(32 * 0.125),
+            transforms.RandomCrop(size=size,
+                                  padding=int(size * 0.125),
                                   padding_mode='reflect'),
-            RandAugmentMC(n=2, m=10)])
+            RandAugmentMC(n=2, m=10,size=size,channels=channels)])
         self.normalize = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)])
@@ -290,9 +291,11 @@ class fixmatch_rs(Strategy):
                                            generator=self.g,
                                            **{'batch_size': 250, 'num_workers': 1})
         if idxs_unlabeled.shape[0] != 0:
+            mean = self.args.normalize['mean']
+            std = self.args.normalize['std']
             train_data_unlabeled = self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled],
                                                 torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
-                                                transform=TransformUDA(mean=(0.4914, 0.4822, 0.4465), std=(0.2470, 0.2435, 0.2616)))
+                                                transform=TransformUDA(mean=mean, std=std, size=self.args.img_size,channels=self.args.channels))
             loader_tr_unlabeled = DataLoader(train_data_unlabeled,
                                              shuffle=True,
                                              pin_memory=True,
@@ -332,7 +335,7 @@ class fixmatch_rs(Strategy):
                 self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
-            self.save_tta_values(self.get_tta_values())
+            # self.save_tta_values(self.get_tta_values())
 
 
         best_test_acc = recorder.max_accuracy(istrain=False)

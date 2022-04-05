@@ -9,18 +9,18 @@ import numpy as np
 import time
 from .strategy import Strategy
 from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time, adjust_learning_rate
-
+from .uda import TransformUDA
 
 unsup_ratio = 7
 p_cutoff = 0.95
 
 
 class TransformWeak(object):
-    def __init__(self, mean, std):
+    def __init__(self, mean, std, size):
         self.weak = transforms.Compose([
             transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop(size=32,
-                                  padding=int(32 * 0.125),
+            transforms.RandomCrop(size=size,
+                                  padding=int(size * 0.125),
                                   padding_mode='reflect')])
         self.normalize = transforms.Compose([
             transforms.ToTensor(),
@@ -124,9 +124,11 @@ class pseudolabel_rs(Strategy):
                                            generator=self.g,
                                            **{'batch_size': 250, 'num_workers': 1})
         if idxs_unlabeled.shape[0] != 0:
+            mean = self.args.normalize['mean']
+            std = self.args.normalize['std']
             train_data_unlabeled = self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled],
                                                 torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
-                                                transform=TransformWeak(mean=(0.4914, 0.4822, 0.4465), std=(0.2470, 0.2435, 0.2616)))
+                                                transform=TransformWeak(mean=mean, std=std, size=self.args.img_size))
             loader_tr_unlabeled = DataLoader(train_data_unlabeled,
                                              shuffle=True,
                                              pin_memory=True,
@@ -166,7 +168,7 @@ class pseudolabel_rs(Strategy):
                 self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
-            self.save_tta_values(self.get_tta_values())
+            # self.save_tta_values(self.get_tta_values())
 
 
         best_test_acc = recorder.max_accuracy(istrain=False)

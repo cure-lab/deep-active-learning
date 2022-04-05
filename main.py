@@ -143,6 +143,7 @@ args_pool = {'mnist':
                                 transforms.Normalize((0.1307,), (0.3081,))]),
                  'loader_tr_args':{'batch_size': 128, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
+                 'normalize':{'mean': (0.1307,), 'std': (0.3081,)},
                 },
             'fashionmnist':
                 {
@@ -157,6 +158,7 @@ args_pool = {'mnist':
                                     transforms.Normalize((0.1307,), (0.3081,))]),
                  'loader_tr_args':{'batch_size': 256, 'num_workers': 1},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 1},
+                 'normalize':{'mean': (0.1307,), 'std': (0.3081,)},
                 },
             'svhn':
                 {
@@ -172,6 +174,7 @@ args_pool = {'mnist':
                                     transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970))]),
                  'loader_tr_args':{'batch_size': 128, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
+                 'normalize':{'mean': (0.4377, 0.4438, 0.4728), 'std': (0.1980, 0.2010, 0.1970)},
                 },
             'cifar10':
                 {
@@ -187,6 +190,7 @@ args_pool = {'mnist':
                                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
                  'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 512, 'num_workers': 8},
+                 'normalize':{'mean': (0.4914, 0.4822, 0.4465), 'std': (0.2470, 0.2435, 0.2616)},
                  },
             'gtsrb': 
                {
@@ -204,6 +208,7 @@ args_pool = {'mnist':
                                     transforms.Normalize([0.3337, 0.3064, 0.3171], [0.2672, 0.2564, 0.2629])]),
                  'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
+                 'normalize':{'mean': [0.3337, 0.3064, 0.3171], 'std': [0.2672, 0.2564, 0.2629]},
                 },
             'tinyimagenet': 
                {
@@ -220,6 +225,7 @@ args_pool = {'mnist':
                                     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
                  'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 512, 'num_workers': 8},
+                 'normalize':{'mean': (0.485, 0.456, 0.406), 'std': (0.229, 0.224, 0.225)},
                 }
         }
 
@@ -251,6 +257,7 @@ def main():
     args.transform_te = dataset_args['transform_te']
     args.loader_tr_args = dataset_args['loader_tr_args']
     args.loader_te_args = dataset_args['loader_te_args']
+    args.normalize = dataset_args['normalize']
     args.log = log 
 
     # load dataset
