@@ -349,15 +349,20 @@ class Strategy:
     
     def save_model(self):
         # save model and selected index
+        save_path = os.path.join(self.args.save_path,self.args.dataset)
+        if not os.path.isdir(save_path):
+            os.makedirs(save_path)
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
         labeled_percentage = str(float(100*labeled/len(self.X)))
-        torch.save(self.clf, os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.pkl'))
-        print('save to ',os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'_parameter.pkl'))
-        path = os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.npy')
+        torch.save(self.clf, os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.pkl'))
+        print('save to ',os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'_parameter.pkl'))
+        path = os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.npy')
         np.save(path,self.idxs_lb)
 
     def load_model(self):
-        self.clf = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+str(self.args.load_model)+'.pkl'))
+        save_path = os.path.join(self.args.save_path,self.args.dataset)
+        self.clf = torch.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.pkl'))
+        self.idxs_lb = np.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.npy'))
 
     def get_tta_values(self,save_info=False):    
         # Save Energy, Energy Variance, Smoothness, Entropy for analysis 
