@@ -32,7 +32,7 @@ from .ssl_diff2augdirect import ssl_Diff2AugDirect
 from .ssl_consistency import ssl_Consistency
 
 # SSL + AL
-from .ssl_uda_rs import uda_rs
-from .ssl_fixmatch_rs import fixmatch_rs
-from .ssl_flexmatch_rs import flexmatch_rs
-from .ssl_pseudolabel_rs import pseudolabel_rs
+from .aug_uda_rs import uda_rs
+from .semi_fixmatch_rs import fixmatch_rs
+from .semi_flexmatch_rs import flexmatch_rs
+from .semi_pseudolabel_rs import pseudolabel_rs
