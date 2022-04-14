@@ -264,6 +264,8 @@ def main():
     X_tr, Y_tr, X_te, Y_te = get_dataset(args.dataset, args.data_path)
     if type(X_tr[0]) is not np.ndarray:
         X_tr = X_tr.numpy()
+        X_te = X_te.numpy()
+        
     args.dim = np.shape(X_tr)[1:]
     handler = get_handler(args.dataset)
 

@@ -431,13 +431,66 @@ class Strategy:
         return np.array(origin_Energy).sum(), np.array(energyVar_values).sum(), np.array(tta_values).sum(), np.array(entropy_values).sum(),np.array(energy_Var).sum()
 
     def save_tta_values(self,tta,loss, iteration,train,predict):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_TTA.txt'),'a')
+        file_name = '_TTA_%s.txt'%self.args.dataset
+        f = open(os.path.join(self.args.save_path, self.args.strategy+file_name),'a')
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
         labeled_percentage = str(int(100*labeled/len(self.X)))
         f.write(str(labeled_percentage)+ '   ' + str(iteration) + '   ' + str(tta[0]) + '   ' + str(tta[1]) + '   ' + str(tta[2]) + '   ' + str(tta[3]) + '   ' + str(tta[4]) + '   '+ str(loss)  + '   ' + str(train) + '   '+ str(predict) + '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_TTA.txt'))
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+file_name))
         f.close()
 
+    def coreset_coverage(self,embedding):
+        """
+            X: The whole dataset
+            ib_idxes (Boolean array): The indexes of the selected labeled data
+            output: max/average radius which cover the 100%/98% of the dataset
+        """
+        print('Coverage')
+        lb_idxes = np.arange(self.n_pool)[self.idxs_lb]
+        from sklearn.metrics import pairwise_distances
+        dist_ctr = pairwise_distances(embedding, embedding[lb_idxes])
+        # group unlabeled data to their nearest labeled data
+        min_args = np.argmin(dist_ctr, axis=1)
+        print("min args: {}".format(min_args))
+        delta = []
+        for j in np.arange(len(lb_idxes)):
+            # get the sample index for the jth center
+            idxes = np.nonzero(min_args == j)[0]
+            distances = dist_ctr[idxes, j]
+            delta_j = 0 if len(distances)==0 else distances.max()
+            delta.append(delta_j)
+        # full cover
+        coverage_mean = np.array(delta).mean()
+        coverage_max = np.array(delta).max()
+        coverage_topmean = np.sort(delta)[::-1][:int(len(delta)*0.3)].mean()
+        return coverage_max, coverage_mean, coverage_topmean
+    
+    def collect_density(self,embedding,num,labelonly=True):
+        print('Density')
+        lb_idxes = np.arange(self.n_pool)[self.idxs_lb]
+        from sklearn.metrics import pairwise_distances
+        if labelonly:
+            dist_ctr = pairwise_distances(embedding[self.idxs_lb], embedding[self.idxs_lb])
+        else:
+            dist_ctr = pairwise_distances(embedding[self.idxs_lb], embedding)
+        density = []
+        for n in num:
+            d = 0
+            for j in range(len(lb_idxes)):
+                distances = dist_ctr[j]
+                distances.sort()
+                d += distances[:n].mean()
+            density.append(d)
+        return density
+
+    def save_coverage_density(self,coverage_max, coverage_mean, coverage_topmean,density,predict):
+        file_name = '_Coverage_density_%s.txt'%self.args.dataset
+        f = open(os.path.join(self.args.save_path, self.args.strategy+file_name),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(int(100*labeled/len(self.X)))
+        f.write(str(labeled_percentage)+ '   ' + str('Load') + '   ' + str(coverage_max) + '   ' + str(coverage_mean) + '   ' + str(coverage_topmean)  + '   ' + str(density).replace(',','   ')[1:-1] + '   ' + str(predict) + '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy + file_name))
+        f.close()
     
 
 
