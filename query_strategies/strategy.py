@@ -14,6 +14,7 @@ from utils import time_string, AverageMeter, RecorderMeter, convert_secs2time, a
 import time
 from torchvision.utils import save_image
 from tqdm import tqdm
+from .util import AugMixDataset
 
 class Strategy:
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
@@ -120,7 +121,7 @@ class Strategy:
         recorder = RecorderMeter(n_epoch)
         epoch = 0 
         train_acc = 0.
-        previous_loss = 0.
+
         if idxs_train.shape[0] != 0:
             transform = self.args.transform_tr if not self.pretrained else None
 
@@ -145,7 +146,6 @@ class Strategy:
                 
                 # train one epoch
                 train_acc, train_los = self._train(epoch, loader_tr, optimizer)
-                # self.save_tta_loss_values(self.get_tta_values(),train_los,epoch)
                 test_acc = self.predict(self.X_te, self.Y_te)
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
@@ -154,16 +154,16 @@ class Strategy:
                                                                                    ) \
                 + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
                                                                1. - recorder.max_accuracy(False)))
-                
-
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
 
-
-            # self.save_tta_values(self.get_tta_values())
             if self.args.save_model:
                 self.save_model()
             recorder.plot_curve(os.path.join(self.args.save_path, self.args.dataset))
             self.clf = self.clf.module
+
+        if self.args.save_tta:
+            test_acc = self.predict(self.X_te, self.Y_te)
+            self.save_tta_values(self.get_tta_values(),train_los,epoch, train_acc, test_acc)
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
@@ -172,12 +172,8 @@ class Strategy:
     def predict(self, X, Y):
         # add support for pretrained model
         transform=self.args.transform_te if not self.pretrained else self.preprocessing
-        if type(X) is np.ndarray:
-            loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True, 
-                            shuffle=False, **self.args.loader_te_args)
-        else: 
-            loader_te = DataLoader(self.handler(X.numpy(), Y, transform=transform), pin_memory=True,
-                            shuffle=False, **self.args.loader_te_args)
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True, 
+                        shuffle=False, **self.args.loader_te_args)
         
         if not self.pretrained:
             self.clf.eval()
@@ -195,6 +191,30 @@ class Strategy:
             test_acc = 1. * correct / len(Y)
    
         return test_acc
+
+    def get_prediction(self, X, Y):
+        # add support for pretrained model
+        transform=self.args.transform_te if not self.pretrained else self.preprocessing
+        loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True, 
+                        shuffle=False, **self.args.loader_te_args)
+
+        P = torch.zeros(len(X)).long().to(self.device)
+
+        if not self.pretrained:
+            self.clf.eval()
+        else:
+            self.clf.classifier.eval()
+
+        correct = 0
+        with torch.no_grad():
+            for x, y, idxs in loader_te:
+                x, y = x.to(self.device), y.to(self.device) 
+                out, e1 = self.clf(x)
+                pred = out.max(1)[1]     
+                P[idxs] = pred           
+                correct +=  (y == pred).sum().item() 
+   
+        return P
 
     def predict_prob(self, X, Y):
         transform = self.args.transform_te if not self.pretrained else self.preprocessing
@@ -326,164 +346,151 @@ class Strategy:
                         else:
                             embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (-1 * batchProbs[j][c])
             return torch.Tensor(embedding)
+    
+    def save_model(self):
+        # save model and selected index
+        save_path = os.path.join(self.args.save_path,self.args.dataset)
+        if not os.path.isdir(save_path):
+            os.makedirs(save_path)
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(float(100*labeled/len(self.X)))
+        torch.save(self.clf, os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.pkl'))
+        print('save to ',os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'_parameter.pkl'))
+        path = os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.npy')
+        np.save(path,self.idxs_lb)
 
+    def load_model(self):
+        save_path = os.path.join(self.args.save_path,self.args.dataset)
+        self.clf = torch.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.pkl'))
+        self.idxs_lb = np.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.npy'))
 
-    def get_tta_values(self):    
-        # apply multiple data augmentation and calculate the variance
-        # TO BE TESTED
-        from torchvision.utils import make_grid
+    def get_tta_values(self,save_info=False):    
+        # Save Energy, Energy Variance, Smoothness, Entropy for analysis 
+        transform=self.args.transform_te if not self.pretrained else self.preprocessing
+        loader_te = DataLoader(self.handler(self.X_te, self.Y_te, transform=transform), pin_memory=True, 
+                        shuffle=False, **self.args.loader_te_args)
+        self.clf.eval()
+        origin_Energy = torch.zeros(len(self.Y_te))
+        origin_Entropy = torch.zeros(len(self.Y_te))
+        origin_Confidence = torch.zeros(len(self.Y_te))
+        origin_Margin = torch.zeros(len(self.Y_te))
+        with torch.no_grad():
+            for x, y, idxs in loader_te:
+                x, y = x.to(self.device), y.to(self.device) 
+                out, e1 = self.clf(x)
+                prob = F.softmax(out, dim=1)
+                log_probs = torch.log(prob)
+                origin_Entropy[idxs] = (-prob*log_probs).cpu().sum(1)
+                origin_Confidence[idxs] = prob.max(1)[0].cpu()
+                probs_sorted, _ = prob.sort(descending=True)
+                origin_Margin[idxs] = probs_sorted[:, 0].cpu() - probs_sorted[:,1].cpu()
+                origin_Energy[idxs] = -np.log(np.exp(out.data.cpu()).sum(1))
+        if save_info:
+            labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+            labeled_percentage = str(int(100*labeled/len(self.X)))
+            np.save(os.path.join(self.args.save_path,'ECM_%s_%s.npy'%(self.args.strategy,labeled_percentage)), np.array([origin_Entropy,origin_Confidence,origin_Margin]))
 
-        n_class, n_iters = 10, 32 
+        origin_Energy = origin_Energy.numpy()
+        n_class, n_iters = self.args.n_class, 32 
+        batch_size = 100
+        n_image = n_iters + 1
         tta_values = []
-        
+        entropy_values = []
+        energy_Var = []
+        energyVar_values = []
         augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
         augtest_loader = torch.utils.data.DataLoader(
                         augset,
-                        batch_size=1,
+                        batch_size=batch_size,
                         shuffle=False,
                         num_workers=self.args.loader_te_args['num_workers'],
                         pin_memory=True)
         self.clf.eval()
-        tta_values_correct = []
-        tta_values_wrong = []
-        for i, all_images in tqdm(enumerate(augtest_loader)):
-            # print("progress {}/{}".format(i, len(self.X_te)))
+        new_idx = []
+        for k in range(batch_size):
+            for j in range(n_image):
+                new_idx.append(k+j*batch_size)
+        for i, (all_images,idx) in tqdm(enumerate(augtest_loader)):
             all_logits, _ = self.clf(torch.cat(all_images, 0).to(self.device))
-            preds = torch.nn.functional.softmax(all_logits.detach().cpu(), dim=1)
-            prob = preds.mean(0)
-            y_pred = preds.sum(0)  
-            y_pred = int(y_pred.max(0)[1].cpu()) 
-            var = preds.var(0).sum()
-            entropy = (-prob*np.log2(prob)).sum()
+            all_logits = all_logits[new_idx]
+            for j in range(batch_size):
+                logit = all_logits[j*n_image:(j+1)*n_image]
+                energy_var = (-np.log(np.exp(logit.data.cpu()).sum(1))).var()
+                energy_Var.append(energy_var)
+                energyVar = energy_var / (origin_Energy[idx[j]]*origin_Energy[idx[j]])     
+                energyVar_values.append(energyVar.numpy())
+                preds = torch.nn.functional.softmax(logit.detach().cpu(), dim=1)
+                prob = preds.mean(0)
+                y_pred = preds.sum(0)  
+                y_pred = int(y_pred.max(0)[1].cpu()) 
+                var = preds.var(0).sum()
+                entropy = (-prob*np.log2(prob)).sum()
+                entropy_values.append(entropy)
+                tta_values.append(var)
 
-            tta_values.append(var)
-            if y_pred == self.Y_te[i]:
-                tta_values_correct.append(var)
-            else:
-                tta_values_wrong.append(var)
-            # variance = preds.var(0).sum()
-            # tta_values.append(variance)
-            if i % 1000 == 0:
-                
-                # print ("size: ", len(all_images))
-                # print ("tensor size: ", torch.cat(all_images, 0).shape)
-                grid = make_grid(torch.cat(all_images, 0), nrow=len(all_images), padding=2)
-                save_image(grid, fp=os.path.join(self.args.save_path, 'img_augmentation_{}.png'.format(i)))
+        return np.array(origin_Energy).sum(), np.array(energyVar_values).sum(), np.array(tta_values).sum(), np.array(entropy_values).sum(),np.array(energy_Var).sum()
 
-
-        ### draw histgram
-        import matplotlib.pyplot as plt
-        tta_list = np.array(tta_values)
-        max_tta = tta_list.max()
-        gap = max_tta/20
-        print(max_tta,len(tta_values_correct), len(tta_values_wrong))
-        gap_list = [x*gap for x in range(20)]
-        distribute_list_c = [0 for x in range(20)]
-        distribute_list_w = [0 for x in range(20)]
-        for tta in tta_values_correct:
-            for i in range(19):
-                if tta > gap_list[i] and tta <= gap_list[i+1]:
-                    distribute_list_c[i] +=1
-        for tta in tta_values_wrong:
-            for i in range(19):
-                if tta > gap_list[i] and tta <= gap_list[i+1]:
-                    distribute_list_w[i] +=1
-        
-        gap_list = [str(gap)[1:5] for gap in gap_list]
-        plt.figure(figsize=(12,4))
-        plt.bar(gap_list, distribute_list_c)
-        plt.bar(gap_list, distribute_list_w,color = 'orange')
-        plt.savefig(fname=os.path.join(self.args.save_path, "hist_t%s.png"%str(self.args.load_model)))
-        print('TTA_values:', np.array(tta_values).sum())
-        return np.array(tta_values).sum()
-    
-    def save_tta_values(self,tta):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
-        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        f.write(str(labeled)+ '   ' + str(tta)+ '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
-        f.close()
-    
-    def save_tta_loss_values(self,tta,loss,iter):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_loss_value.txt'),'a')
+    def save_tta_values(self,tta,loss, iteration,train,predict):
+        file_name = '_TTA_%s.txt'%self.args.dataset
+        f = open(os.path.join(self.args.save_path, self.args.strategy+file_name),'a')
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
         labeled_percentage = str(int(100*labeled/len(self.X)))
-        f.write(str(labeled_percentage)+ '   ' + str(iter) + '   ' + str(tta)+ '   ' + str(loss) + '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
+        f.write(str(labeled_percentage)+ '   ' + str(iteration) + '   ' + str(tta[0]) + '   ' + str(tta[1]) + '   ' + str(tta[2]) + '   ' + str(tta[3]) + '   ' + str(tta[4]) + '   '+ str(loss)  + '   ' + str(train) + '   '+ str(predict) + '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy+file_name))
         f.close()
 
-    def save_tta_acc_values(self,tta,acc):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'),'a')
-        f.write(str(self.args.load_model)+ '   ' + str(tta)+ '   ' + str(acc) + '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_tta_value.txt'))
-        f.close()
+    def coreset_coverage(self,embedding):
+        """
+            X: The whole dataset
+            ib_idxes (Boolean array): The indexes of the selected labeled data
+            output: max/average radius which cover the 100%/98% of the dataset
+        """
+        print('Coverage')
+        lb_idxes = np.arange(self.n_pool)[self.idxs_lb]
+        from sklearn.metrics import pairwise_distances
+        dist_ctr = pairwise_distances(embedding, embedding[lb_idxes])
+        # group unlabeled data to their nearest labeled data
+        min_args = np.argmin(dist_ctr, axis=1)
+        print("min args: {}".format(min_args))
+        delta = []
+        for j in np.arange(len(lb_idxes)):
+            # get the sample index for the jth center
+            idxes = np.nonzero(min_args == j)[0]
+            distances = dist_ctr[idxes, j]
+            delta_j = 0 if len(distances)==0 else distances.max()
+            delta.append(delta_j)
+        # full cover
+        coverage_mean = np.array(delta).mean()
+        coverage_max = np.array(delta).max()
+        coverage_topmean = np.sort(delta)[::-1][:int(len(delta)*0.3)].mean()
+        return coverage_max, coverage_mean, coverage_topmean
     
-    def save_model(self):
-        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        labeled_percentage = str(int(100*labeled/len(self.X)))
-        torch.save(self.clf, os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'.pkl'))
-        print('save to ',os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_parameter.pkl'))
-
-    def load_model(self):
-        self.clf = torch.load(os.path.join(self.args.save_path, self.args.strategy+'_'+self.args.model+'_'+str(self.args.load_model)+'.pkl'))
-
-    def tta_test_from_load_model(self):
-        if self.args.load_model != 0:
-            self.load_model()
-        test_acc = self.predict(self.X_te, self.Y_te)
-        tta = self.get_tta_values()
-        self.save_tta_acc_values(tta,test_acc)
-        print(test_acc, tta)
-        
-class AugMixDataset(torch.utils.data.Dataset):
-    """Dataset wrapper to perform AugMix augmentation."""
-    def __init__(self, dataset, preprocess, n_iters, no_jsd=False):
-        self.dataset = dataset
-        self.preprocess = preprocess
-        self.no_jsd = no_jsd
-        self.n_iters = n_iters
-
-    def __getitem__(self, i):
-        x = self.dataset[i]
-        if self.no_jsd:
-            return aug(x, self.preprocess)
+    def collect_density(self,embedding,num,labelonly=True):
+        print('Density')
+        lb_idxes = np.arange(self.n_pool)[self.idxs_lb]
+        from sklearn.metrics import pairwise_distances
+        if labelonly:
+            dist_ctr = pairwise_distances(embedding[self.idxs_lb], embedding[self.idxs_lb])
         else:
-            aug_image = [aug(x, self.preprocess) for i in range(self.n_iters)]
-            im_tuple = [self.preprocess(x)] + aug_image
-            return im_tuple
+            dist_ctr = pairwise_distances(embedding[self.idxs_lb], embedding)
+        density = []
+        for n in num:
+            d = 0
+            for j in range(len(lb_idxes)):
+                distances = dist_ctr[j]
+                distances.sort()
+                d += distances[:n].mean()
+            density.append(d)
+        return density
 
-    def __len__(self):
-        return len(self.dataset)
+    def save_coverage_density(self,coverage_max, coverage_mean, coverage_topmean,density,predict):
+        file_name = '_Coverage_density_%s.txt'%self.args.dataset
+        f = open(os.path.join(self.args.save_path, self.args.strategy+file_name),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(int(100*labeled/len(self.X)))
+        f.write(str(labeled_percentage)+ '   ' + str('Load') + '   ' + str(coverage_max) + '   ' + str(coverage_mean) + '   ' + str(coverage_topmean)  + '   ' + str(density).replace(',','   ')[1:-1] + '   ' + str(predict) + '\n')
+        print('write in ',os.path.join(self.args.save_path, self.args.strategy + file_name))
+        f.close()
+    
 
-def aug(image, preprocess):
-    """Perform AugMix augmentations and compute mixture.
-    Args:
-        image: PIL.Image input image
-        preprocess: Preprocessing function which should return a torch tensor.
-    Returns:
-        mixed: Augmented and mixed image.
-    """
-    from . import augmentations
-    from PIL import Image
-    image = Image.fromarray(image)
-    aug_list = augmentations.augmentations
-    # if args.all_ops:
-    #     aug_list = augmentations.augmentations_all
-    mixture_width, mixture_depth = 1, -1
-    aug_severity = 3
-    ws = np.float32(np.random.dirichlet([1] * mixture_width))
-    m = np.float32(np.random.beta(1, 1))
 
-    mix = torch.zeros_like(preprocess(image))
-    for i in range(mixture_width):
-        image_aug = image.copy()
-        depth = mixture_depth if mixture_depth > 0 else np.random.randint(
-                1, 4)
-        for _ in range(depth):
-            op = np.random.choice(aug_list)
-            image_aug = op(image_aug, aug_severity)
-        # Preprocessing commutes since all coefficients are convex
-        mix += ws[i] * preprocess(image_aug)
-
-    mixed = (1 - m) * preprocess(image) + m * mix
-    return np.array(mixed)

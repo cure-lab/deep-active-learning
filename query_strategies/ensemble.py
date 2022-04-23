@@ -42,7 +42,7 @@ def vat_loss(model, ul_x, ul_y, xi=1e-6, eps=2.5, num_iters=1):
     for i in range(num_iters):
         d = xi *_l2_normalize(d)
         # print('d:',d.shape)
-        d = Variable(d.cuda(), requires_grad=True)
+        d = Variable(d.to(self.device), requires_grad=True)
         y_hat, e1 = model(ul_x + d)
         delta_kl = kl_div_with_logit(ul_y.detach(), y_hat)
         delta_kl.backward()
@@ -51,7 +51,7 @@ def vat_loss(model, ul_x, ul_y, xi=1e-6, eps=2.5, num_iters=1):
         model.zero_grad()
 
     d = _l2_normalize(d)
-    d = Variable(d.cuda())
+    d = Variable(d.to(self.device))
     r_adv = eps *d
     # compute lds
     y_hat, e1 = model(ul_x + r_adv.detach())
@@ -111,7 +111,7 @@ class ensemble(Strategy):
                 if model_idx == len(self.clf) - 1:
                     x, y = next(labeled_data[model_idx])
                     acc_div += x.size(0)
-                    x, y = Variable(x.cuda()), Variable(y.cuda())
+                    x, y = Variable(x.to(self.device)), Variable(y.to(self.device))
                     optimizer[model_idx].zero_grad()
                     y_pred, e1= model(x)
                     accFinal += torch.sum((torch.max(y_pred, 1)[1] == y).float()).data.item()
@@ -122,10 +122,10 @@ class ensemble(Strategy):
                 else:
                     x, y = next(labeled_data[model_idx])
                     acc_div += x.size(0)
-                    x, y = Variable(x.cuda()), Variable(y.cuda())
+                    x, y = Variable(x.to(self.device)), Variable(y.to(self.device))
                     # print('y_shape',y.shape)
                     unlabeled_x = next(unlabeled_data[model_idx])
-                    unlabeled_x = Variable(unlabeled_x.cuda())
+                    unlabeled_x = Variable(unlabeled_x.to(self.device))
                     optimizer[model_idx].zero_grad()
 
                     nll = nn.NLLLoss(reduction='mean')
@@ -157,7 +157,7 @@ class ensemble(Strategy):
                 m.reset_parameters()
 
         n_epoch = self.args.n_epoch
-        self.clf = [net.apply(weight_reset).cuda() for net in self.net]
+        self.clf = [net.apply(weight_reset).to(self.device) for net in self.net]
         optimizer = [optim.SGD(model.parameters(), lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum) for model in self.clf]
 
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
@@ -211,30 +211,6 @@ class ensemble(Strategy):
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc         
 
-    # def predict(self, X, Y):
-    #     # add support for pretrained model
-    #     transform=self.args.transform_te if not self.pretrained else self.preprocessing
-    #     if type(X) is np.ndarray:
-    #         loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True, 
-    #                         shuffle=False, **self.args.loader_te_args)
-    #     else: 
-    #         loader_te = DataLoader(self.handler(X.numpy(), Y, transform=transform), pin_memory=True,
-    #                         shuffle=False, **self.args.loader_te_args)
-        
-    #     for clf in self.clf:
-    #         clf.eval()
-
-    #     correct = 0
-    #     with torch.no_grad():
-    #         for x, y, idxs in loader_te:
-    #             x, y = x.to(self.device), y.to(self.device) 
-    #             out = self.ensemble_predict(x)
-    #             pred = out.max(1)[1]                
-    #             correct +=  (y == pred).sum().item() 
-
-    #         test_acc = 1. * correct / len(Y)
-   
-    #     return test_acc
 
     def predict(self, X, Y):
         # add support for pretrained model
@@ -283,19 +259,6 @@ class ensemble(Strategy):
                     prob = F.softmax(out, dim=1)
                     probs[idxs] += prob.cpu().data
         return probs
-
-        # f = True
-        # for idx, model in enumerate(self.clf):
-        #     if idx == len(self.clf) - 1:
-        #         continue
-        #     y_pred, e1 = model(x)
-        #     y_pred = F.softmax(y_pred, dim=1)
-        #     if f:
-        #         sum_y = y_pred
-        #         f = False
-        #     else:
-        #         sum_y += y_pred
-        # return y_pred
         
 
     def ensemble_predict_var(self,x):
@@ -310,9 +273,8 @@ class ensemble(Strategy):
             pred_list.append(y_pred)
         for i in range(y_pred.shape[0]):
             prob = [pred_list[j][i][pred[i]].data.cpu() for j in range(len(self.clf) - 1 )]
-            # print(prob)
             var_list.append(np.var(prob))
-        # print(x.shape,y_pred.shape,pred_list[0][0][0])
+
         return var_list
 
     def query(self, n):
@@ -338,7 +300,7 @@ class ensemble(Strategy):
 		# return idxs_unlabeled[U.sort()[1][:n]]
         # with torch.no_grad():
         #     for x, y, idxs in unlabeled_loader:
-        #         x, y = Variable(x.cuda()), Variable(y.cuda())
+        #         x, y = Variable(x.to(self.device)), Variable(y.to(self.device))
         #         var = self.ensemble_predict_var(x)
         #         # print(idxs.shape)
         #         for i,j in zip(var,idxs):
@@ -352,24 +314,22 @@ class ensemble(Strategy):
 
 def adjust_learning_rate(optimizer, epoch, gammas, schedule, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    "Add by YU"
     lr = args.lr
     mu = args.momentum
-    for opt in optimizer:
-        if args.optimizer != "YF":
-            assert len(gammas) == len(
-                schedule), "length of gammas and schedule should be equal"
-            for (gamma, step) in zip(gammas, schedule):
-                if (epoch >= step):
-                    lr = lr * gamma
-                else:
-                    break
-            
+    if args.optimizer != "YF":
+        assert len(gammas) == len(
+            schedule), "length of gammas and schedule should be equal"
+        for (gamma, step) in zip(gammas, schedule):
+            if (epoch >= step):
+                lr = lr * gamma
+            else:
+                break
+        for opt in optimizer:
             for param_group in opt.param_groups:
                 param_group['lr'] = lr
 
-        elif args.optimizer == "YF":
-            lr = opt._lr
-            mu = opt._mu
+    elif args.optimizer == "YF":
+        lr = opt._lr
+        mu = opt._mu
 
     return lr, mu

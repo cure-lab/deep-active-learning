@@ -24,7 +24,7 @@ class LossNet(nn.Module):
 
         self.linear = nn.Linear(4 * interm_dim, 1)
     
-    def forward(self, features):
+    def forward(self, features,intermediate=False):
         out1 = self.GAP1(features[0])
         out1 = out1.view(out1.size(0), -1)
         out1 = F.relu(self.FC1(out1))
@@ -42,5 +42,8 @@ class LossNet(nn.Module):
         out4 = F.relu(self.FC4(out4))
 
         out = self.linear(torch.cat((out1, out2, out3, out4), 1))
-        return out
+        if intermediate:
+            return out,torch.cat((out1, out2, out3, out4),1),[out1, out2, out3, out4]
+        else:
+            return out,torch.cat((out1, out2, out3, out4),1)
         

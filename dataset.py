@@ -26,31 +26,34 @@ def get_dataset(name, path):
 
 
 def get_tinyImageNet(path):
+    # 100000 train 10000 test
     raw_tr = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/train')
     raw_te = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/val')
+    f = open('dataset/tinyImageNet/tiny-imagenet-200/val/val_annotations.txt')
+    val_dict = {}
+    for line in f.readlines():
+        val_dict[line.split()[0]] = raw_tr.class_to_idx[line.split()[1]]
+
     X_tr,Y_tr,X_te, Y_te = [],[],[],[]
-    # 100000 train 10000 test
-    # print(np.array(raw_tr[0][0]).shape)
     count=0
     coun_list = [1000*(x+1) for x in range(100)]
+    
     for ct in coun_list:
-        # Accelerate by dividing
         while count < ct:
             image,target = raw_tr[count]
             X_tr.append(np.array(image))
             Y_tr.append(target)
             count += 1
-
     count=0
     coun_list = [1000*(x+1) for x in range(10)]
     for ct in coun_list:
         while count < ct:
-            image,target = raw_tr[count]
+            image,target = raw_te[count]
+            img_pth = raw_te.imgs[count][0].split('/')[-1]
             X_te.append(np.array(image))
-            Y_te.append(target)
+            Y_te.append(val_dict[img_pth])
             count += 1
-
-    return np.array(X_tr), np.array(Y_tr), np.array(X_te), np.array(Y_te)
+    return torch.from_numpy(np.array(X_tr)), torch.from_numpy(np.array(Y_tr)), torch.from_numpy(np.array(X_te)), torch.from_numpy(np.array(Y_te))
 
 def get_MNIST(path):
     raw_tr = datasets.MNIST(path + '/mnist', train=True, download=True)

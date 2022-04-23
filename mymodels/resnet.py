@@ -37,7 +37,6 @@ class BasicBlock(nn.Module):
         out = F.relu(out)
         return out
 
-
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -101,7 +100,7 @@ class resnet_clf(nn.Module):
     def __init__(self, block, n_class=10, input_64 =False):
         super(resnet_clf, self).__init__()
         if input_64:
-            self.linear = nn.Linear(128 * 4, n_class)
+            self.linear = nn.Linear(128 * block.expansion * 4, n_class)
         else:
             self.linear = nn.Linear(128 * block.expansion, n_class)
 
@@ -182,22 +181,22 @@ class ResNet(nn.Module):
         return self.embDim
 
 
-def ResNet18(n_class, bayesian):
+def ResNet18(n_class, bayesian=False):
     return ResNet(BasicBlock, [2,2,2,2], n_class=n_class, bayesian=bayesian)
 
-def ResNet34(n_class, bayesian):
+def ResNet34(n_class, bayesian=False):
     return ResNet(BasicBlock, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet50(n_class, bayesian):
+def ResNet50(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet101(n_class, bayesian):
+def ResNet101(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,4,23,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet152(n_class, bayesian):
+def ResNet152(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,8,36,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet18_64(n_class, bayesian):
+def ResNet18_64(n_class, bayesian=False):
     return ResNet(BasicBlock, [2,2,2,2], n_class=n_class, bayesian=bayesian, input_64=True)
 
 def test():
