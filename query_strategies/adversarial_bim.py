@@ -32,10 +32,10 @@ class AdversarialBIM(Strategy):
 			out, e1 = self.clf((nx+eta).to(self.device))
 			py = out.max(1)[1]
 
-			if cnt % 100 == 0:
+			if cnt % 10 == 0:
 				print (cnt)
 
-			if cnt == 1000:
+			if cnt == 100:
 				break
 
 		return (eta*eta).sum()

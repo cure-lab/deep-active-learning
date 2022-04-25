@@ -18,6 +18,7 @@ class MCADL(Strategy):
         self.alpha_init = 0.9
         self.beta_init = 0.9
         self.last_acc = [0.0]*self.args.n_class
+        print (X.shape, X[0].shape, X[1].shape)
         self.similarity = pairwise.cosine_similarity(X.reshape([len(X), -1]), X.reshape([len(X), -1]))
 
     def uncertainty(self, proba, flag):

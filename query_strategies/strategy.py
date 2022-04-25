@@ -439,7 +439,7 @@ class Strategy:
         print('write in ',os.path.join(self.args.save_path, self.args.strategy+file_name))
         f.close()
 
-    def coreset_coverage(self,embedding):
+    def coreset_coverage(self, embedding):
         """
             X: The whole dataset
             ib_idxes (Boolean array): The indexes of the selected labeled data
@@ -482,7 +482,7 @@ class Strategy:
                 d += distances[:n].mean()
             density.append(d)
         return density
-
+    
     def save_coverage_density(self,coverage_max, coverage_mean, coverage_topmean,density,predict):
         file_name = '_Coverage_density_%s.txt'%self.args.dataset
         f = open(os.path.join(self.args.save_path, self.args.strategy+file_name),'a')
@@ -491,6 +491,44 @@ class Strategy:
         f.write(str(labeled_percentage)+ '   ' + str('Load') + '   ' + str(coverage_max) + '   ' + str(coverage_mean) + '   ' + str(coverage_topmean)  + '   ' + str(density).replace(',','   ')[1:-1] + '   ' + str(predict) + '\n')
         print('write in ',os.path.join(self.args.save_path, self.args.strategy + file_name))
         f.close()
-    
+
+    def get_data_feature(self):
+        from feature_model.get_feature import get_moco_feature
+        loader_te = DataLoader(self.handler(self.X,self.Y, 
+                        transform=self.args.transform_te), shuffle=False, pin_memory=True, **self.args.loader_te_args)
+        if self.args.dataset == 'cifar10':
+            moco_ckpt_path = '/research/dept2/yuli/dnn-testing/myTesting/DataCoverage/checkpoint/cifar10/ckpt_pretrained_mocov3/checkpoint.pth.tar'
+        elif self.args.dataset == 'gtsrb':
+            moco_ckpt_path = '/research/dept2/yuli/dnn-testing/myTesting/DataCoverage/checkpoint/gtsrb/ckpt_pretrained_mocov3/checkpoint.pth.tar'
+        else:
+            pass
+        embedding,_ = get_moco_feature(loader_te, moco_ckpt_path)
+        return embedding
+
+    def save_all_coverage_density(self):
+        import torchvision.models as models
+        embedding = self.get_data_feature()
+        
+        import os
+        files_names = []
+        save_path = os.path.join(self.args.save_path,self.args.dataset)
+        for root, dirs, files in os.walk(save_path, topdown=False):
+            for name in files:
+                if '.pkl' in name:
+                    files_names.append(os.path.join(root, name).split('_')[-2])
+        
+        for i in files_names:
+            self.args.load_model = str(i)
+            if self.args.dataset == 'cifar10':
+                self.far_load()
+            else:
+                self.load_model()
+            test_acc = self.predict(self.X_te, self.Y_te)
+            print('Load ', self.args.load_model)
+            # embedding_lb = embedding[self.idxs_lb]
+            density = self.collect_density(embedding,[2,5,10,25,50,100,200],labelonly=False)
+            coverage_max, coverage_mean, coverage_topmean = self.coreset_coverage(embedding)
+            print(coverage_max, coverage_mean, coverage_topmean,density,test_acc)
+            self.save_coverage_density(coverage_max, coverage_mean, coverage_topmean,density,test_acc)
 
 

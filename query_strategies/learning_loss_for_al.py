@@ -154,6 +154,10 @@ class LearningLoss(Strategy):
 
 
             loss.backward()
+            # clamp gradients, just in case
+            for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
+            for p in filter(lambda p: p.grad is not None, self.loss_module.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
+            
             optimizers['backbone'].step()
             optimizers['module'].step()
 
@@ -163,8 +167,7 @@ class LearningLoss(Strategy):
             accLoss += loss.item()
             if batch_idx % 10 == 0:
                 print ("[Batch={:03d}] [Loss={:.2f}]".format(batch_idx, loss))
-            # clamp gradients, just in case
-            for p in filter(lambda p: p.grad is not None, self.clf.parameters()): p.grad.data.clamp_(min=-.1, max=.1)
+
         return accFinal / len(loader_tr.dataset.X), accLoss
 
     def train(self,alpha=0, n_epoch=80):
