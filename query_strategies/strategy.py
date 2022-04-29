@@ -15,7 +15,7 @@ import time
 from torchvision.utils import save_image
 from tqdm import tqdm
 from .util import AugMixDataset
-
+from sklearn.metrics import pairwise_distances
 class Strategy:
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
         self.X = X  # vector
@@ -359,10 +359,13 @@ class Strategy:
         path = os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.npy')
         np.save(path,self.idxs_lb)
 
-    def load_model(self):
-        save_path = os.path.join(self.args.save_path,self.args.dataset)
-        self.clf = torch.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.pkl'))
-        self.idxs_lb = np.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.npy'))
+    def load_model(self, is_small_budget=False):
+        if is_small_budget:
+            model_path = os.path.join('checkpoint', self.args.dataset + '_smallbudget')
+        else:
+            model_path = os.path.join('checkpoint', self.args.dataset + '_' + self.args.strategy)
+        self.clf = torch.load(os.path.join(model_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.pkl'))
+        self.idxs_lb = np.load(os.path.join(model_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.npy'))
 
     def get_tta_values(self,save_info=False):    
         # Save Energy, Energy Variance, Smoothness, Entropy for analysis 
@@ -447,7 +450,7 @@ class Strategy:
         """
         print('Coverage')
         lb_idxes = np.arange(self.n_pool)[self.idxs_lb]
-        from sklearn.metrics import pairwise_distances
+        
         dist_ctr = pairwise_distances(embedding, embedding[lb_idxes])
         # group unlabeled data to their nearest labeled data
         min_args = np.argmin(dist_ctr, axis=1)
@@ -468,7 +471,6 @@ class Strategy:
     def collect_density(self,embedding,num,labelonly=True):
         print('Density')
         lb_idxes = np.arange(self.n_pool)[self.idxs_lb]
-        from sklearn.metrics import pairwise_distances
         if labelonly:
             dist_ctr = pairwise_distances(embedding[self.idxs_lb], embedding[self.idxs_lb])
         else:
@@ -522,7 +524,7 @@ class Strategy:
             if self.args.dataset == 'cifar10':
                 self.far_load()
             else:
-                self.load_model()
+                self.load_model(is_small_budget=is_small_budget)
             test_acc = self.predict(self.X_te, self.Y_te)
             print('Load ', self.args.load_model)
             # embedding_lb = embedding[self.idxs_lb]
@@ -531,4 +533,85 @@ class Strategy:
             print(coverage_max, coverage_mean, coverage_topmean,density,test_acc)
             self.save_coverage_density(coverage_max, coverage_mean, coverage_topmean,density,test_acc)
 
+
+    def get_matrixs(self, dist_ctr):
+        cl_idxs = np.load('embedding/%s_clusters.npy'%self.args.dataset)
+
+        lb_idxes = np.arange(self.n_pool)[self.idxs_lb]
+        # ul_idxes = np.arange(self.n_pool)[~self.idxs_lb]
+        print('Compute Coverage Density! len', len(lb_idxes))
+        coverage_dist_ctr = dist_ctr[:,lb_idxes]
+        # coverage_dist_ctr_ul = dist_ctr[:,lb_idxes]
+        # coverage_dist_ctr_ul = coverage_dist_ctr_ul[ul_idxes,:]
+
+        min_args = np.argmin(coverage_dist_ctr, axis=1)
+        delta = []
+        for j in range(len(lb_idxes)):
+            # get the sample index for the jth center
+            idxes = np.nonzero(min_args == j)[0]
+            distances = coverage_dist_ctr[idxes, j]
+            delta_j = 0 if len(distances)==0 else distances.max()
+            delta.append(delta_j)
+        # full cover
+        coverage_mean = np.array(delta).mean()
+        coverage_max = np.array(delta).max()
+        coverage_topmean = np.sort(delta)[::-1][:int(len(delta)*0.3)].mean()
+        
+
+        # cov_j = number of selected samples / total samples in the cluster
+        # the standard deviation between cov_j
+        all_data_cluster = [0 for i in range(1000)]
+        selected_data_cluster = [0 for i in range(1000)]
+        print ('cl_idxs length: ', len(cl_idxs))
+        # plot the 
+        for i,cl in enumerate(cl_idxs):
+            if i in lb_idxes:
+                selected_data_cluster[cl] += 1 
+            all_data_cluster[cl] += 1 
+        coverage_revised = (np.array(selected_data_cluster)/np.array(all_data_cluster)).var(0)
+        
+        density = []
+        for n in [2,5,10,25,50,100,200]:
+            d = 0
+            for j in lb_idxes:
+                distances = dist_ctr[j]
+                distances.sort()
+                d += distances[:n].mean()
+            density.append(d)
+
+        return density, coverage_max, coverage_mean, coverage_topmean,coverage_revised
+
+    def save_metrixs(self, is_small_budget):
+        embedding = np.load('embedding/%s_embed.npy'%self.args.dataset)
+        if self.args.dataset == 'tinyimagenet':
+            files_names = ['10.0','15.0','20.0','25.0','30.0','35.0','40.0','45.0','50.0','55.0','60.0','65.0','70.0']
+        elif self.args.dataset == 'cifar10':
+            files_names = [i*2+12 for i in range(24)]
+        elif self.args.dataset == 'gtsrb':
+            files_names = [i*2+12 for i in range(19)]
+        else:
+            files_names = [i+3 for i in range(18)]
+
+        # model trained with samll budget
+        if is_small_budget:
+            files_names = list(np.arange(0.5, 4, 0.5))
+
+        dist_ctr = pairwise_distances(embedding, embedding)
+        for name in files_names:
+            self.args.load_model = str(name)
+            self.load_model(is_small_budget=is_small_budget) 
+            test_acc = self.predict(self.X_te, self.Y_te)
+            print('Load ', self.args.load_model)
+            density, coverage_max, coverage_mean, coverage_topmean, coverage_cluster = self.get_matrixs(dist_ctr)
+            self.save_metrixs_tofiles(density + [coverage_max, coverage_mean, coverage_topmean, coverage_cluster, test_acc])
+
+    def save_metrixs_tofiles(self, metrixs):
+        file_name = 'Metrixs_%s.csv'%self.args.dataset
+        f = open(os.path.join(self.args.save_path, file_name),'a')
+        labeled = len(np.arange(self.n_pool)[self.idxs_lb])
+        labeled_percentage = str(round(100*labeled/len(self.X), 1))
+        metrixs = [self.args.strategy] + [labeled_percentage,] + metrixs + ['\n',]
+        f.write((' ').join([str(item) for item in metrixs]))
+        print('write in ', os.path.join(self.args.save_path, file_name))
+        f.close()
 

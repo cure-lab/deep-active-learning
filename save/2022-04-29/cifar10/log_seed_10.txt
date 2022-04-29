@@ -1,0 +1,1 @@
+load pretrained checkpoint and calculate the coverage, density, etc

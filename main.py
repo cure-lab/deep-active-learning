@@ -99,9 +99,10 @@ parser.add_argument('--save_model',
 parser.add_argument('--save_tta', 
                     action='store_true',
                     default=False, help='save tta every epochs')
-parser.add_argument('--load_model', 
-                    type=str,
-                    help='load model from save_path, with name "strategy_model_epoch_parameter.pkl"')
+parser.add_argument('--is_load_ckpt', 
+                    action='store_true',
+                    help='load model from memory, True or False')
+
 # automatically set
 # parser.add_argument("--local_rank", type=int)
 
@@ -301,16 +302,16 @@ def main():
     else:
         net = mymodels.__dict__[args.model](n_class=args.n_class)
 
-    if args.load_model:
-        idxs_lb = np.load(os.path.join(args.save_path, args.strategy+'_'+args.model+'_'+args.load_model+'_'+str(args.manualSeed)+'.npy'))
-        if len(np.arange(n_pool)[idxs_lb]) != NUM_INIT_LB:
-            raise ValueError("Number of labeled data should equal to start number")
+    # if args.load_model:
+    #     idxs_lb = np.load(os.path.join(args.save_path, args.strategy+'_'+args.model+'_'+args.load_model+'_'+str(args.manualSeed)+'.npy'))
+    #     if len(np.arange(n_pool)[idxs_lb]) != NUM_INIT_LB:
+    #         raise ValueError("Number of labeled data should equal to start number")
         
-    else:
-        idxs_lb = np.zeros(n_pool, dtype=bool)
-        idxs_tmp = np.arange(n_pool)
-        np.random.shuffle(idxs_tmp)
-        idxs_lb[idxs_tmp[:NUM_INIT_LB]] = True
+    # else:
+    idxs_lb = np.zeros(n_pool, dtype=bool)
+    idxs_tmp = np.arange(n_pool)
+    np.random.shuffle(idxs_tmp)
+    idxs_lb[idxs_tmp[:NUM_INIT_LB]] = True
         
 
     # selection strategy
@@ -329,13 +330,20 @@ def main():
 
     print_log('Strategy {} successfully loaded...'.format(args.strategy), log)
 
+    # load pretrained model
+    if args.is_load_ckpt:
+        print_log('load pretrained checkpoint and calculate the coverage, density, etc', log)
+        strategy.save_metrixs(is_small_budget=True)
+        return 0
+
     # round 0 accuracy
     alpha = 2e-3
-    if args.load_model:
-        strategy.load_model()
-    else:
-        strategy.train(alpha=alpha, n_epoch=args.n_epoch)
+    # if args.load_model:
+    #     strategy.load_model()
+    # else:
+    strategy.train(alpha=alpha, n_epoch=args.n_epoch)
     test_acc= strategy.predict(X_te, Y_te)
+
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = test_acc
     print_log('==>> Testing accuracy {}'.format(acc[0]), log)

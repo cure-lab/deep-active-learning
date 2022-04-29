@@ -33,33 +33,33 @@ export CUBLAS_WORKSPACE_CONFIG=:16:8
 
 dataset=cifar10
 model=ResNet18
-start=10
-end=70
-step=5
-n_epoch=150
+start=0.5
+end=4
+step=0.5
+n_epoch=100
 
 # dataset=gtsrb
 # model=ResNet18
-# start=10
-# end=70
-# step=5
-# n_epoch=150
+# start=0.5
+# end=4
+# step=0.5
+# n_epoch=100
 
 
 strategies=(
             'RandomSampling' \
-            'CoreSet' \
-            'BadgeSampling' \
-            'BALDDropout' \
-            'LeastConfidence' \
-            'KMeansSampling' \
-            'AdversarialBIM' \
-            'ActiveLearningByLearning' \
-            'LearningLoss' \
-            'ClusterMarginSampling' \
-            'uncertainGCN' \
-            'coreGCN' \
-            'MCADL' \
+            # 'CoreSet' \
+            # 'BadgeSampling' \
+            # 'BALDDropout' \
+            # 'LeastConfidence' \
+            # 'KMeansSampling' \
+            # 'AdversarialBIM' \
+            # 'ActiveLearningByLearning' \
+            # 'LearningLoss' \
+            # 'ClusterMarginSampling' \
+            # 'uncertainGCN' \
+            # 'coreGCN' \
+            # 'MCADL' \
             # 'WAAL' \
             # 'VAAL' \
             # 'ssl_Random' \
@@ -93,7 +93,8 @@ do
                             --save_file $save_file \
                             --manualSeed $manualSeed \
                             --data_path $data_path \
-                            --save_model
+                            --save_model \
+                            --is_load_ckpt
         done
 done
 

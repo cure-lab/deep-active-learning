@@ -11,6 +11,13 @@ from sklearn.metrics import pairwise
 # Multi-criteria active deep learning for image classification
 # Published in Knowledge-Based System, 2019
 # Hunan University
+def _resize(X,length):
+    # Smooth augmentation, for robust performance
+    import PIL
+    # print(X.shape)
+    X = PIL.Image.fromarray(X)
+    X = X.resize((length,length))
+    return np.array(X)
 
 class MCADL(Strategy):
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
@@ -18,8 +25,13 @@ class MCADL(Strategy):
         self.alpha_init = 0.9
         self.beta_init = 0.9
         self.last_acc = [0.0]*self.args.n_class
-        print (X.shape, X[0].shape, X[1].shape)
-        self.similarity = pairwise.cosine_similarity(X.reshape([len(X), -1]), X.reshape([len(X), -1]))
+        X_sim = []
+        # print(type(self.X_te[0]))
+        # exit()
+        for x in X:
+            X_sim.append(_resize(x,self.args.img_size))
+        X_sim = np.array(X_sim)
+        self.similarity = pairwise.cosine_similarity(X_sim.reshape([len(X), -1]), X_sim.reshape([len(X), -1]))
 
     def uncertainty(self, proba, flag):
         '''
@@ -61,7 +73,10 @@ class MCADL(Strategy):
         Acc = []
         for i in range(self.args.n_class):
             # obtain the accuracy on each class
-            acc = self.predict(X[Y==i], Y[Y==i])
+            if len(Y[Y==i]) == 0:
+                acc = 0
+            else:
+                acc = self.predict(X[Y==i], Y[Y==i])
             Acc.append(acc)
         return Acc
 
