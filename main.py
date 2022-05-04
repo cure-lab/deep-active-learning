@@ -199,6 +199,7 @@ args_pool = {'mnist':
                  'channels':3,
                  'size': 32,
                  'transform_tr': transforms.Compose([
+                                    transforms.Resize((32, 32)),
                                     transforms.RandomCrop(size = 32, padding=4),
                                     transforms.RandomHorizontalFlip(),
                                     transforms.ToTensor(), 
