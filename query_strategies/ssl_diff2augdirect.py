@@ -23,8 +23,7 @@ class ssl_Diff2AugDirect(semi_Strategy):
         
         loader_te = DataLoader(self.handler(X, Y, transform=TransformTwice(self.args.transform_te, self.args.transform_tr)), shuffle=False, **self.args.loader_te_args)
 
-        if not self.pretrained:
-            self.ema_model.eval()
+        self.ema_model.eval()
 
         probs = torch.zeros([len(Y), len(np.unique(self.Y))]).to(self.device)
         with torch.no_grad():

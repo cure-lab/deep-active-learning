@@ -1,9 +1,0 @@
-KMeansSampling,1,budget,40.0,nStart,10.0,nQuery,5.0,labeled,15.0,accCompare,0.7236,0.7754,0.05179999999999996,timePerIter,958.9139816761017
-KMeansSampling,1,budget,40.0,nStart,10.0,nQuery,5.0,labeled,20.0,accCompare,0.7236,0.8112,0.08760000000000001,timePerIter,899.6957759857178
-KMeansSampling,1,budget,40.0,nStart,10.0,nQuery,5.0,labeled,25.0,accCompare,0.7236,0.8266,0.10299999999999998,timePerIter,867.7830538749695
-KMeansSampling,1,budget,40.0,nStart,10.0,nQuery,5.0,labeled,30.0,accCompare,0.7236,0.8384,0.11480000000000001,timePerIter,801.1301839351654
-KMeansSampling,1,budget,40.0,nStart,10.0,nQuery,5.0,labeled,35.0,accCompare,0.7236,0.8442,0.12059999999999993,timePerIter,753.4896659851074
-KMeansSampling,1,budget,40.0,nStart,10.0,nQuery,5.0,labeled,40.0,accCompare,0.7236,0.8557,0.1321,timePerIter,670.4383454322815
-KMeansSampling,2,budget,40.0,nStart,10.0,nQuery,5.0,labeled,15.0,accCompare,0.7218,0.1,-0.6218,timePerIter,984.5448606014252
-KMeansSampling,4,budget,40.0,nStart,10.0,nQuery,5.0,labeled,15.0,accCompare,0.7139,0.1,-0.6139,timePerIter,960.5284268856049
-KMeansSampling,5,budget,40.0,nStart,10.0,nQuery,5.0,labeled,15.0,accCompare,0.7324,0.7862,0.05379999999999996,timePerIter,993.8182363510132

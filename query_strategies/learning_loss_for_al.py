@@ -175,7 +175,7 @@ class LearningLoss(Strategy):
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 m.reset_parameters()
 
-        transform = self.args.transform_tr if not self.pretrained else None
+        transform = self.args.transform_tr
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
 
         loader_tr = DataLoader(self.handler(self.X[idxs_train], torch.Tensor(self.Y.numpy()[idxs_train]).long(),

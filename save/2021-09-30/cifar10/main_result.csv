@@ -1,3 +1,0 @@
-BALDDropout,1,budget,40,nQuery,5,currentQuery,5,accCompare,0.8727,0.8732,0.0004999999999999449,timePerIter,0.4689066410064697
-AdversarialBIM,1,budget,40,nQuery,5,currentQuery,5,accCompare,0.1,0.1,0.0,timePerIter,0.0008511543273925781
-BALDDropout,1,budget,40,nQuery,5,currentQuery,5,accCompare,0.1,0.1,0.0,timePerIter,111.76570177078247

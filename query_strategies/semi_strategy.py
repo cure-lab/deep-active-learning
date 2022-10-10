@@ -15,7 +15,7 @@ import sys, os
 from torchvision.utils import save_image
 from tqdm import tqdm
 from .util import AugMixDataset,TransformTwice,linear_rampup,interleave_offsets,interleave,WeightEMA
-
+# Mixmatch
 torch.backends.cudnn.benchmark = True
 
 lambda_u = 100
@@ -42,17 +42,11 @@ class semi_Strategy:
         self.handler = handler
         self.args = args
         self.n_pool = len(Y)
-        self.pretrained = args.pretrained
-        if args.pretrained:
-            self.preprocessing = args.preprocessing
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.clf = net[0].to(self.device)
-        self.net = net[0].to(self.device)
-
-        if self.pretrained: # use the latent vector of the inputs as training data
-            self.X_p = self.get_pretrained_embedding(X, Y)
-
-        self.ema_model = net[1].to(self.device)
+        
+        self.net = net.to(self.device)
+        self.clf = deepcopy(net.to(self.device))
+        self.ema_model = deepcopy(net.to(self.device))
         for param in self.ema_model.parameters():
             param.detach_()
         
@@ -92,7 +86,6 @@ class semi_Strategy:
                 inputs_x, targets_x, _ = labeled_train_iter.next()
                 out, e1 = self.clf(inputs_x.to(self.device))
                 loss = F.cross_entropy(out, targets_x.to(self.device))
-                Store_TTA = False
                 ce_loss += loss.item()
                 accFinal += torch.sum((torch.max(out,1)[1] == targets_x.to(self.device)).float()).data.item()
                 batch_size = inputs_x.size(0)
@@ -183,16 +176,11 @@ class semi_Strategy:
 
     
     def train(self, alpha=0.1, n_epoch=10):
-
-        def weight_reset(m):
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear): 
-                m.reset_parameters()
-        
-        self.clf =  self.net.apply(weight_reset)
-        self.ema_model =  self.ema_model.apply(weight_reset)
+        self.clf =  deepcopy(self.net)
+        self.ema_model =  deepcopy(self.net)
         
         self.clf = nn.DataParallel(self.clf).to(self.device)
-        parameters = self.clf.parameters() if not self.pretrained else self.clf.module.classifier.parameters()
+        parameters = self.clf.parameters()
         optimizer = optim.SGD(parameters, lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
         ema_optimizer= WeightEMA(self.clf, self.ema_model, alpha=ema_decay, lr = self.args.lr)
 
@@ -203,29 +191,26 @@ class semi_Strategy:
         recorder = RecorderMeter(n_epoch)
         epoch = 0 
         train_acc = 0.
+        best_test_acc = 0.
         previous_loss = 0.
         train_iteration = len(self.X) / self.args.loader_tr_args['batch_size']
         
         if idxs_train.shape[0] != 0:
-            transform = self.args.transform_tr if not self.pretrained else None
+            transform = self.args.transform_tr
 
-            loader_labeled = DataLoader(self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train], 
+            loader_labeled = DataLoader(self.handler(self.X[idxs_train] , 
                                     torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
                                     transform=transform), shuffle=True, 
                                     pin_memory=True,
                                     # sampler = DistributedSampler(train_data),
                                     worker_init_fn=self.seed_worker,
                                     **self.args.loader_tr_args)
-            # print(len(loader_labeled.dataset.X))
-            # exit()
-            loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] if not self.pretrained else self.X_p[idxs_unlabeled], 
+
+            loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] , 
                                     torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), 
                                     transform=TransformTwice(transform)), shuffle=True, 
                                     **self.args.loader_tr_args)
-            # train_iteration = max(len(loader_labeled.dataset.X),len(loader_unlabeled.dataset.X))/self.args.loader_tr_args['batch_size']
-            
-            # print('X',len(self.X))
-            # print('has:', n_epoch)
+
             for epoch in range(n_epoch):
                 print(epoch,n_epoch)
                 ts = time.time()
@@ -252,33 +237,29 @@ class semi_Strategy:
                 test_acc = self.predict(self.X_te, self.Y_te)
                 
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
+                
+                if self.args.save_model and test_acc > best_test_acc:
+                    best_test_acc = test_acc
+                    self.save_model()
 
             self.clf = self.clf.module
-            if self.args.save_model:
-                self.save_model()
-
-        if self.args.save_tta:
-            test_acc = self.predict(self.X_te, self.Y_te)
-            self.save_tta_values(self.get_tta_values(),train_los,epoch, train_acc, test_acc)
+                
 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
 
 
     def predict(self, X, Y):
-        # add support for pretrained model
-        transform=self.args.transform_te if not self.pretrained else self.preprocessing
+        transform=self.args.transform_te 
         if type(X) is np.ndarray:
             loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
         else: 
             loader_te = DataLoader(self.handler(X.numpy(), Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
-        
-        if not self.pretrained:
-            self.ema_model.eval()
-        else:
-            self.ema_model.classifier.eval()
+
+        self.clf.eval()
+        self.ema_model.eval()
 
         correct = 0
         with torch.no_grad():
@@ -293,17 +274,14 @@ class semi_Strategy:
         return test_acc
 
     def get_prediction(self, X, Y):
-        # add support for pretrained model
-        transform=self.args.transform_te if not self.pretrained else self.preprocessing
+        transform=self.args.transform_te 
         loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True, 
                         shuffle=False, **self.args.loader_te_args)
 
         P = torch.zeros(len(X)).long().to(self.device)
 
-        if not self.pretrained:
-            self.ema_model.eval()
-        else:
-            self.ema_model.classifier.eval()
+        self.ema_model.eval()
+        self.clf.eval()
 
         correct = 0
         with torch.no_grad():
@@ -317,14 +295,12 @@ class semi_Strategy:
         return P
 
     def predict_prob(self, X, Y):
-        transform = self.args.transform_te if not self.pretrained else self.preprocessing
+        transform = self.args.transform_te 
         loader_te = DataLoader(self.handler(X, Y, 
                         transform=transform), shuffle=False, **self.args.loader_te_args)
 
-        if not self.pretrained:
-            self.ema_model.eval()
-        else:
-            self.ema_model.classifier.eval()
+        self.ema_model.eval()
+        self.clf.eval()
 
         probs = torch.zeros([len(Y), len(np.unique(self.Y))])
         with torch.no_grad():
@@ -337,13 +313,12 @@ class semi_Strategy:
         return probs
 
     def predict_prob_dropout(self, X, Y, n_drop):
-        transform = self.args.transform_te if not self.pretrained else self.preprocessing
+        transform = self.args.transform_te 
         loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
-        if not self.pretrained:
-            self.ema_model.train()
-        else:
-            self.ema_model.classifier.train()
+
+        self.ema_model.train()
+        self.clf.train()
 
         probs = torch.zeros([len(Y), len(np.unique(Y))])
         with torch.no_grad():
@@ -359,14 +334,12 @@ class semi_Strategy:
         return probs
 
     def predict_prob_dropout_split(self, X, Y, n_drop):
-        transform = self.args.transform_te if not self.pretrained else self.preprocessing
+        transform = self.args.transform_te 
         loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
 
-        if not self.pretrained:
-            self.ema_model.train()
-        else:
-            self.ema_model.classifier.train()
+        self.ema_model.train()
+        self.clf.train()
 
         probs = torch.zeros([n_drop, len(Y), len(np.unique(Y))])
         with torch.no_grad():
@@ -390,13 +363,12 @@ class semi_Strategy:
 
     def get_embedding(self, X, Y):
         """ get last layer embedding from current model"""
-        transform = self.args.transform_te if not self.pretrained else self.preprocessing
+        transform = self.args.transform_te 
         loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
-        if not self.pretrained:
-            self.ema_model.eval()
-        else:
-            self.ema_model.classifier.eval()
+
+        self.ema_model.eval()
+        self.clf.eval()
         
         embedding = torch.zeros([len(Y), 
                 self.ema_model.module.get_embedding_dim() if isinstance(self.ema_model, nn.DataParallel) 
@@ -408,30 +380,10 @@ class semi_Strategy:
                 embedding[idxs] = e1.data.cpu().float()
         
         return embedding
-
-    def get_pretrained_embedding(self, X, Y):
-        """ get embedding from the pretrained model: add by Yuli
-            Only valid if pretrained is true
-        """
-        if not self.pretrained:
-            raise ValueError("pretrained is not true")
-
-        transform = self.preprocessing
-        loader_te = DataLoader(self.handler(X, Y, transform=transform),
-                            shuffle=False, **self.args.loader_te_args)
-    
-        embedding = torch.zeros([len(Y), 512])
-        with torch.no_grad():
-            for x, y, idxs in loader_te:
-                x, y = x.to(self.device), y.to(self.device) 
-                e1 = self.ema_model.fe.encode_image(x)
-                embedding[idxs] = e1.data.cpu().float()
-        
-        return embedding
     
     def get_grad_embedding(self, X, Y):
         """ gradient embedding (assumes cross-entropy loss) of the last layer"""
-        transform = self.args.transform_te if not self.pretrained else self.preprocessing
+        transform = self.args.transform_te 
 
         model = self.ema_model
         if isinstance(model, nn.DataParallel):
@@ -457,97 +409,21 @@ class semi_Strategy:
                             embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (-1 * batchProbs[j][c])
             return torch.Tensor(embedding)
 
-
     def save_model(self):
         # save model and selected index
-        save_path = os.path.join(self.args.save_path,self.args.dataset)
+        save_path = os.path.join(self.args.save_path,self.args.dataset+'_checkpoint')
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        labeled_percentage = str(float(100*labeled/len(self.X)))
-        torch.save(self.ema_model, os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.pkl'))
-        print('save to ',os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'_parameter.pkl'))
-        path = os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.manualSeed)+'.npy')
+        labeled_percentage = '%.1f'%float(100*labeled/len(self.X))
+        torch.save(self.ema_model, os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.seed)+'.pkl'))
+        print('save to ',os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.seed)+'.pkl'))
+        path = os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.seed)+'.npy')
         np.save(path,self.idxs_lb)
 
     def load_model(self):
-        save_path = os.path.join(self.args.save_path,self.args.dataset)
-        self.ema_model = torch.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.pkl'))
-        self.idxs_lb = np.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+self.args.load_model+'_'+str(self.args.manualSeed)+'.npy'))
-
-    def get_tta_values(self,save_info=False):    
-        # Save Energy, Energy Variance, Smoothness, Entropy for analysis 
-        transform=self.args.transform_te if not self.pretrained else self.preprocessing
-        loader_te = DataLoader(self.handler(self.X_te, self.Y_te, transform=transform), pin_memory=True, 
-                        shuffle=False, **self.args.loader_te_args)
-        self.ema_model.eval()
-        origin_Energy = torch.zeros(len(self.Y_te))
-        origin_Entropy = torch.zeros(len(self.Y_te))
-        origin_Confidence = torch.zeros(len(self.Y_te))
-        origin_Margin = torch.zeros(len(self.Y_te))
-        with torch.no_grad():
-            for x, y, idxs in loader_te:
-                x, y = x.to(self.device), y.to(self.device) 
-                out, e1 = self.ema_model(x)
-                prob = F.softmax(out, dim=1)
-                log_probs = torch.log(prob)
-                origin_Entropy[idxs] = (-prob*log_probs).cpu().sum(1)
-                origin_Confidence[idxs] = prob.max(1)[0].cpu()
-                probs_sorted, _ = prob.sort(descending=True)
-                origin_Margin[idxs] = probs_sorted[:, 0].cpu() - probs_sorted[:,1].cpu()
-                origin_Energy[idxs] = -np.log(np.exp(out.data.cpu()).sum(1))
-        if save_info:
-            labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-            labeled_percentage = str(int(100*labeled/len(self.X)))
-            np.save(os.path.join(self.args.save_path,'ECM_%s_%s.npy'%(self.args.strategy,labeled_percentage)), np.array([origin_Entropy,origin_Confidence,origin_Margin]))
-
-        origin_Energy = origin_Energy.numpy()
-        n_class, n_iters = self.args.n_class, 32 
-        batch_size = 100
-        n_image = n_iters + 1
-        tta_values = []
-        entropy_values = []
-        energy_Var = []
-        energyVar_values = []
-        augset = AugMixDataset(self.X_te, self.args.transform_te, n_iters) 
-        augtest_loader = torch.utils.data.DataLoader(
-                        augset,
-                        batch_size=batch_size,
-                        shuffle=False,
-                        num_workers=self.args.loader_te_args['num_workers'],
-                        pin_memory=True)
-        self.ema_model.eval()
-        new_idx = []
-        for k in range(batch_size):
-            for j in range(n_image):
-                new_idx.append(k+j*batch_size)
-        for i, (all_images,idx) in tqdm(enumerate(augtest_loader)):
-            all_logits, _ = self.ema_model(torch.cat(all_images, 0).to(self.device))
-            all_logits = all_logits[new_idx]
-            for j in range(batch_size):
-                logit = all_logits[j*n_image:(j+1)*n_image]
-                energy_var = (-np.log(np.exp(logit.data.cpu()).sum(1))).var()
-                energy_Var.append(energy_var)
-                energyVar = energy_var / (origin_Energy[idx[j]]*origin_Energy[idx[j]])     
-                energyVar_values.append(energyVar.numpy())
-                preds = torch.nn.functional.softmax(logit.detach().cpu(), dim=1)
-                prob = preds.mean(0)
-                y_pred = preds.sum(0)  
-                y_pred = int(y_pred.max(0)[1].cpu()) 
-                var = preds.var(0).sum()
-                entropy = (-prob*np.log2(prob)).sum()
-                entropy_values.append(entropy)
-                tta_values.append(var)
-
-        return np.array(origin_Energy).sum(), np.array(energyVar_values).sum(), np.array(tta_values).sum(), np.array(entropy_values).sum(),np.array(energy_Var).sum()
-
-    def save_tta_values(self,tta,loss, iteration,train,predict):
-        f = open(os.path.join(self.args.save_path, self.args.strategy+'_TTA.txt'),'a')
         labeled = len(np.arange(self.n_pool)[self.idxs_lb])
-        labeled_percentage = str(int(100*labeled/len(self.X)))
-        f.write(str(labeled_percentage)+ '   ' + str(iteration) + '   ' + str(tta[0]) + '   ' + str(tta[1]) + '   ' + str(tta[2]) + '   ' + str(tta[3]) + '   ' + str(tta[4]) + '   '+ str(loss)  + '   ' + str(train) + '   '+ str(predict) + '\n')
-        print('write in ',os.path.join(self.args.save_path, self.args.strategy+'_TTA.txt'))
-        f.close()
-
-
-
+        labeled_percentage = '%.1f'%float(100*labeled/len(self.X))
+        save_path = os.path.join(self.args.save_path,self.args.dataset+'_checkpoint')
+        self.ema_model = torch.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.seed)+'.pkl'))
+        self.idxs_lb = np.load(os.path.join(save_path, self.args.strategy+'_'+self.args.model+'_'+labeled_percentage+'_'+str(self.args.seed)+'.npy'))

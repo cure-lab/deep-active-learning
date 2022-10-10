@@ -33,8 +33,7 @@ class ssl_Consistency(semi_Strategy):
         
         loader_consistency = DataLoader(self.handler(X, Y, transform=TransformFive(self.args.transform_tr)), shuffle=False, **self.args.loader_te_args)
 
-        if not self.pretrained:
-            self.ema_model.eval()
+        self.ema_model.eval()
 
         consistency = np.zeros([len(Y)])
         with torch.no_grad():

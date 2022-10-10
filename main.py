@@ -1,4 +1,3 @@
-from re import I
 import numpy as np
 import random
 import sys
@@ -6,14 +5,13 @@ import sys
 import os
 import argparse
 from dataset import get_dataset, get_handler, get_wa_handler
-import torch.nn.functional as F
 from torchvision import transforms
 import torch
 import csv
 import time
 
 import query_strategies 
-import mymodels
+import models
 from utils import print_log
 # import torch.distributed as dist
 
@@ -22,7 +20,7 @@ os.environ['CUBLAS_WORKSPACE_CONFIG']= ':16:8'
 
 query_strategies_name = sorted(name for name in query_strategies.__dict__
                      if callable(query_strategies.__dict__[name]))
-model_name = sorted(name for name in mymodels.__dict__)
+model_name = sorted(name for name in models.__dict__)
 
 
 ###############################################################################
@@ -38,16 +36,13 @@ parser.add_argument('--nEnd',type=float, default=100,
                         help = 'total number of points to query (%)')
 parser.add_argument('--nEmb',  type=int, default=256,
                         help='number of embedding dims (mlp)')
-parser.add_argument('--rand_idx', type=int, default=1,
+parser.add_argument('--seed', type=int, default=1,
                     help='the index of the repeated experiments', )
-parser.add_argument('--manualSeed', type=int, default=None, help='manual seed')
-parser.add_argument("-t","--full", action='store_true',
-                    help="Training on the entire dataset")
 
 # model and data
 parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str)
 parser.add_argument('--dataset', help='dataset (non-openML)', type=str, default='')
-parser.add_argument('--data_path', help='data path', type=str, default='')
+parser.add_argument('--data_path', help='data path', type=str, default='./dataset')
 parser.add_argument('--save_path', help='result save save_dir', default='./save')
 parser.add_argument('--save_file', help='result save save_dir', default='result.csv')
 
@@ -69,7 +64,6 @@ parser.add_argument('--n_ensembles', type=int, default=1,
 parser.add_argument('--proxy_model', type=str, default=None,
                     help='the architecture of the proxy model')
 
-
 # training hyperparameters
 parser.add_argument('--optimizer',
                     type=str,
@@ -83,23 +77,17 @@ parser.add_argument('--schedule',
                     default=[80, 120],
                     help='Decrease learning rate at these epochs.')
 parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
-parser.add_argument('--lr', type=float, default=0.1, help='learning rate.')
+parser.add_argument('--lr', type=float, default=0.1, help='learning rate. 0.01 for semi')
 parser.add_argument('--gammas',
                     type=float,
                     nargs='+',
                     default=[0.1, 0.1],
                     help=
                     'LR is multiplied by gamma on schedule, number of gammas should be equal to schedule')
-parser.add_argument('--pretrained', 
-                    action='store_true',
-                    default=False, help='use pretrained feature extractor')
 parser.add_argument('--save_model', 
                     action='store_true',
                     default=False, help='save model every steps')
-parser.add_argument('--save_tta', 
-                    action='store_true',
-                    default=False, help='save tta every epochs')
-parser.add_argument('--is_load_ckpt', 
+parser.add_argument('--load_ckpt', 
                     action='store_true',
                     help='load model from memory, True or False')
 
@@ -114,15 +102,12 @@ args = parser.parse_args()
 
 ############################# For reproducibility #############################################
 
-if args.manualSeed is None:
-    args.manualSeed = args.rand_idx
-    # args.manualSeed = random.randint(0, 10000)
-random.seed(args.manualSeed)
-torch.manual_seed(args.manualSeed)
-np.random.seed(args.manualSeed)
+random.seed(args.seed)
+torch.manual_seed(args.seed)
+np.random.seed(args.seed)
 
 if torch.cuda.is_available():
-    torch.cuda.manual_seed(args.manualSeed)
+    torch.cuda.manual_seed(args.seed)
     # True ensures the algorithm selected by CUFA is deterministic
     # torch.backends.cudnn.deterministic = True
     torch.set_deterministic(True)
@@ -237,16 +222,16 @@ args_pool = {'mnist':
 def main():
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path)
-    
-
+    if not os.path.isdir(args.data_path):
+        os.makedirs(args.data_path)
     log = os.path.join(args.save_path,
-                        'log_seed_{}.txt'.format(args.manualSeed))
+                        'log_seed_{}.txt'.format(args.seed))
 
     # print the args
     print_log('save path : {}'.format(args.save_path), log)
     state = {k: v for k, v in args._get_kwargs()}
     print_log(str(state), log)
-    print_log("Random Seed: {}".format(args.manualSeed), log)
+    print_log("Random Seed: {}".format(args.seed), log)
     print_log("python version : {}".format(sys.version.replace('\n', ' ')), log)
     print_log("torch  version : {}".format(torch.__version__), log)
     print_log("cudnn  version : {}".format(torch.backends.cudnn.version()), log)
@@ -280,35 +265,18 @@ def main():
 
     args.nEnd =  args.nEnd if args.nEnd != -1 else 100
     args.nQuery = args.nQuery if args.nQuery != -1 else (args.nEnd - args.nStart)
-    if args.full:
-        # train the model with full data
-        NUM_INIT_LB = n_pool
-        NUM_QUERY = 0
-        NUM_ROUND = 0
-    else:
-        # train the model iteratively
-        NUM_INIT_LB = int(args.nStart*n_pool/100)
-        NUM_QUERY = int(args.nQuery*n_pool/100)
-        NUM_ROUND = int((int(args.nEnd*n_pool/100) - NUM_INIT_LB)/ NUM_QUERY) 
-        if (int(args.nEnd*n_pool/100) - NUM_INIT_LB)% NUM_QUERY != 0:
-            NUM_ROUND += 1
+
+    NUM_INIT_LB = int(args.nStart*n_pool/100)
+    NUM_QUERY = int(args.nQuery*n_pool/100) if args.nStart!= 100 else 0
+    NUM_ROUND = int((int(args.nEnd*n_pool/100) - NUM_INIT_LB)/ NUM_QUERY) if args.nStart!= 100 else 0
+    if (int(args.nEnd*n_pool/100) - NUM_INIT_LB)% NUM_QUERY != 0:
+        NUM_ROUND += 1
     
     print_log("[init={:02d}] [query={:02d}] [end={:02d}]".format(NUM_INIT_LB, NUM_QUERY, int(args.nEnd*n_pool/100)), log)
 
     # load specified network
-    if args.strategy == 'ensemble':
-        net = [mymodels.__dict__[args.model](n_class=args.n_class) for _ in range(args.n_ensembles)]
-    elif 'ssl_' in args.strategy:
-        net = [mymodels.__dict__[args.model](n_class=args.n_class) for _ in range(2)]
-    else:
-        net = mymodels.__dict__[args.model](n_class=args.n_class)
+    net = models.__dict__[args.model](n_class=args.n_class)
 
-    # if args.load_model:
-    #     idxs_lb = np.load(os.path.join(args.save_path, args.strategy+'_'+args.model+'_'+args.load_model+'_'+str(args.manualSeed)+'.npy'))
-    #     if len(np.arange(n_pool)[idxs_lb]) != NUM_INIT_LB:
-    #         raise ValueError("Number of labeled data should equal to start number")
-        
-    # else:
     idxs_lb = np.zeros(n_pool, dtype=bool)
     idxs_tmp = np.arange(n_pool)
     np.random.shuffle(idxs_tmp)
@@ -331,18 +299,12 @@ def main():
 
     print_log('Strategy {} successfully loaded...'.format(args.strategy), log)
 
-    # load pretrained model
-    if args.is_load_ckpt:
-        print_log('load pretrained checkpoint and calculate the coverage, density, etc', log)
-        strategy.save_metrixs(is_small_budget=True)
-        return 0
-
-    # round 0 accuracy
     alpha = 2e-3
-    # if args.load_model:
-    #     strategy.load_model()
-    # else:
-    strategy.train(alpha=alpha, n_epoch=args.n_epoch)
+    # load pretrained model
+    if args.load_ckpt:
+        strategy.load_model()
+    else:
+        strategy.train(alpha=alpha, n_epoch=args.n_epoch)
     test_acc= strategy.predict(X_te, Y_te)
 
     acc = np.zeros(NUM_ROUND+1)
@@ -380,7 +342,7 @@ def main():
             writer = csv.writer(f, delimiter=',')
             writer.writerow([
                             args.strategy,
-                            args.rand_idx,
+                            args.seed,
                             'budget',
                             args.nEnd,
                             'nStart', 

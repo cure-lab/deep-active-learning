@@ -47,14 +47,25 @@ We've been running our code in Python 3.7.
 
 
 # Running an experiment
+## Requirements
 
-`python main.py --model ResNet18  --dataset cifar10 --strategy LeastConfidence`\
-runs an active learning experiment using ResNet18 and CIFAR-10 data, querying according to the LeastConfidence algorithm.
+First, please make sure you have installed Conda. Then, our environment can be installed by:
+```
+conda create -n DAL python=3.7
+conda activate DAL
+pip install -r requirements.txt
+```
 
-The result will be saved in the **./save** directory
+## Example
+```
+python main.py --model ResNet18  --dataset cifar10 --strategy LeastConfidence
+```
+It runs an active learning experiment using ResNet18 and CIFAR-10 data, querying according to the LeastConfidence algorithm. The result will be saved in the **./save** directory.
 
-# Analyzing experimental results
-TWD
+You can also use `run.sh` to run experiments.
+
+## Self-supervised feautres of data
+You can download the features/feature_model from [here](https://mycuhk-my.sharepoint.com/:f:/g/personal/1155170454_link_cuhk_edu_hk/EtfELBvgwwlArSvrxtOHbaoBkTmCZgqZ3qOPwaQ601a4SQ?e=GfEj94)
 
 # Contact
 If you have any questions/suggestions, or would like to contribute to this repo, please feel free to contact:
@@ -106,14 +117,12 @@ If you have any questions/suggestions, or would like to contribute to this repo,
 
 [16] (ECCV'20) Consistency-based semi-supervised active learning: Towards minimizing labeling cost [paper](https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123550511.pdf) 
 
-[17] (Google, NIPS’20) Unsupervised Data Augmentation for Consistency Training 
+[17] (Google, arXiv) Combining MixMatch and Active Learning for Better Accuracy with Fewer Labels 
 
-[18] (Google, arXiv) Combining MixMatch and Active Learning for Better Accuracy with Fewer Labels 
+[18] (Google, NIPS’20) Unsupervised Data Augmentation for Consistency Training 
+
 
 
 <!-- - [YuLi] (LAL, NIPS'17) Learning Active Learning from Data [paper](https://papers.nips.cc/paper/2017/file/8ca8da41fe1ebc8d3ca31dc14f5fc56c-Paper.pdf) [code](https://github.com/ksenia-konyushkova/LAL) -->
-
-<!-- ## Image Regression -->
-<!-- TBW -->
 
 

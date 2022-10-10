@@ -231,7 +231,7 @@ class LearningAL(Strategy):
         
         self.clf =  self.clf.apply(weight_reset)
         self.clf = nn.DataParallel(self.clf).to(self.device)
-        parameters = self.clf.parameters() if not self.pretrained else self.clf.module.classifier.parameters()
+        parameters = self.clf.parameters()
         optimizer = optim.SGD(parameters, lr = self.args.lr,
                          weight_decay=5e-4, momentum=self.args.momentum)
 
@@ -244,10 +244,10 @@ class LearningAL(Strategy):
         train_acc = 0.
         previous_loss = 0.
         if idxs_train.shape[0] != 0:
-            transform = self.args.transform_tr if not self.pretrained else None
+            transform = self.args.transform_tr
 
             if X is None and Y is None:
-                X_train = self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train]
+                X_train = self.X[idxs_train]
                 Y_train = torch.Tensor(self.Y.numpy()[idxs_train]).long()
             else:
                 X_train = X

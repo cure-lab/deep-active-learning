@@ -1,3 +1,4 @@
+# Supervised learning + DAL
 from .random_sampling import RandomSampling
 from .least_confidence import LeastConfidence
 from .margin_sampling import MarginSampling
@@ -18,21 +19,20 @@ from .wasserstein_adversarial import WAAL
 from .learning_loss_for_al import LearningLoss
 from .vaal import VAAL
 from .batch_active_learning_at_scale import ClusterMarginSampling
-# from .batch_BALD import BatchBALD
-from .ensemble import ensemble
+from .batch_BALD import BatchBALD
 from .uncertainGCN import uncertainGCN
 from .coreGCN import coreGCN
 from .mcadl import MCADL
 
-# SSL + DAL
-from .ssl_lc import ssl_LC
+# Semi-supervise(mixmatch) + DAL
 from .ssl_rand import ssl_Random
 from .ssl_diff2augkmeans import ssl_Diff2AugKmeans
 from .ssl_diff2augdirect import ssl_Diff2AugDirect
 from .ssl_consistency import ssl_Consistency
+from .ssl_least_confidence import ssl_LC
 
-# SSL + AL
-# from .aug_uda_rs import uda_rs
-# from .semi_fixmatch_rs import fixmatch_rs
-# from .semi_flexmatch_rs import flexmatch_rs
-# from .semi_pseudolabel_rs import pseudolabel_rs
+# Other augmentation/semi-supervise + random selection
+from .aug_uda import uda
+from .semi_fixmatch import fixmatch
+from .semi_flexmatch import flexmatch
+from .semi_pseudolabel import pseudolabel

@@ -36,7 +36,7 @@ def get_tinyImageNet(path):
 
     X_tr,Y_tr,X_te, Y_te = [],[],[],[]
     count=0
-    coun_list = [1000*(x+1) for x in range(100)]
+    coun_list = [1000*(x+1) for x in range(100)] # can not load at once, memory limitation
     
     for ct in coun_list:
         while count < ct:

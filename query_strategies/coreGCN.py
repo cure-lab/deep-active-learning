@@ -15,7 +15,7 @@ import torch.nn.init as init
 import torch.nn.functional as F 
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
-from mymodels.gcn import GCN
+from models.gcn import GCN
 import torch.optim as optim
 
 

@@ -41,7 +41,7 @@ class Proxy(Strategy):
             # exit()
             optimizer.zero_grad()
 
-            out, e1 = model(x) if not self.pretrained else model.module.classifier(x)
+            out, e1 = model(x)
             nan_mask_out = torch.isnan(y)
             if nan_mask_out.any():
                 raise RuntimeError(f"Found NAN in output indices: ", nan_mask.nonzero())
@@ -79,7 +79,7 @@ class Proxy(Strategy):
         
         model =  model.apply(weight_reset)
         model = nn.DataParallel(model).to(self.device)
-        parameters = model.parameters() if not self.pretrained else model.module.classifier.parameters()
+        parameters = model.parameters()
         optimizer = optim.SGD(parameters, lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
 
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
@@ -91,9 +91,9 @@ class Proxy(Strategy):
         train_acc = 0.
         previous_loss = 0.
         if idxs_train.shape[0] != 0:
-            transform = self.args.transform_tr if not self.pretrained else None
+            transform = self.args.transform_tr
 
-            loader_tr = DataLoader(self.handler(self.X[idxs_train] if not self.pretrained else self.X_p[idxs_train], 
+            loader_tr = DataLoader(self.handler(self.X[idxs_train], 
                                     torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
                                     transform=transform), shuffle=True, 
                                     **self.args.loader_tr_args)
@@ -135,9 +135,7 @@ class Proxy(Strategy):
 
     def predict(self, X, Y):
         model = self.proxy_model if self.args.proxy_model is not None else self.clf
-
-        # add support for pretrained model
-        transform=self.args.transform_te if not self.pretrained else self.preprocessing
+        transform=self.args.transform_te
         if type(X) is np.ndarray:
             loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
@@ -145,10 +143,7 @@ class Proxy(Strategy):
             loader_te = DataLoader(self.handler(X.numpy(), Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
         
-        if not self.pretrained:
-            model.eval()
-        else:
-            model.classifier.eval()
+        self.clf.eval()
 
         correct = 0
         with torch.no_grad():
@@ -165,14 +160,10 @@ class Proxy(Strategy):
     def predict_prob(self, X, Y):
         model = self.proxy_model 
 
-        transform = self.args.transform_te if not self.pretrained else self.preprocessing
+        transform = self.args.transform_te
         loader_te = DataLoader(self.handler(X, Y, 
                         transform=transform), shuffle=False, **self.args.loader_te_args)
-
-        if not self.pretrained:
-            model.eval()
-        else:
-            model.classifier.eval()
+        self.clf.eval()
 
         probs = torch.zeros([len(Y), len(np.unique(self.Y))])
         with torch.no_grad():

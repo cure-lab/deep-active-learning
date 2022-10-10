@@ -44,12 +44,9 @@ class AdversarialBIM(Strategy):
 		idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
 
 		# self.clf = self.clf.to('cpu')
-		if not self.pretrained:
-			self.clf.eval()
-		else:
-			self.clf.classifier.eval()
+		self.clf.eval()
 		dis = np.zeros(idxs_unlabeled.shape)
-		transform = self.args.transform_te if not self.pretrained else self.preprocessing
+		transform = self.args.transform_te
 		data_pool = self.handler(self.X[idxs_unlabeled], self.Y[idxs_unlabeled], 
 						transform=transform)
 		for i in range(len(idxs_unlabeled)):

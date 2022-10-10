@@ -442,7 +442,7 @@ class VAAL(Strategy):
 
         idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         idxs_labeled = np.arange(self.n_pool)[self.idxs_lb]
-        transform = self.args.transform_tr if not self.pretrained else None
+        transform = self.args.transform_tr
         unlabeled_loader = DataLoader(self.handler(self.X[idxs_unlabeled], torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(),
                                             transform=transform), shuffle=True,
                                     pin_memory=True,

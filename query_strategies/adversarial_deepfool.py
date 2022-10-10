@@ -57,7 +57,7 @@ class AdversarialDeepFool(Strategy):
         self.clf.cpu()
         self.clf.eval()
         dis = np.zeros(idxs_unlabeled.shape)
-        transform = self.args.transform_te if not self.pretrained else self.preprocessing
+        transform = self.args.transform_te
         data_pool = self.handler(self.X[idxs_unlabeled], self.Y.numpy()[idxs_unlabeled],
                                  transform=transform)
         for i in range(len(idxs_unlabeled)):
