@@ -5,7 +5,6 @@ from torchvision import datasets
 from torch.utils.data import Dataset
 from PIL import Image
 from torchvision import transforms
-
 import os
 import torchvision
 
@@ -19,6 +18,8 @@ def get_dataset(name, path):
         return get_SVHN(path)
     elif name.lower() == 'cifar10':
         return get_CIFAR10(path)
+    elif name.lower() == 'cifar100':
+        return get_CIFAR100(path)
     elif name.lower() == 'gtsrb':
         return get_GTSRB(path)
     elif name.lower() == 'tinyimagenet':
@@ -29,36 +30,35 @@ def get_tinyImageNet(path):
     # 100000 train 10000 test
     raw_tr = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/train')
     raw_te = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/val')
-    f = open('dataset/tinyImageNet/tiny-imagenet-200/val/val_annotations.txt')
+    f = open(path + '/tinyImageNet/tiny-imagenet-200/val/val_annotations.txt')
+
     val_dict = {}
     for line in f.readlines():
         val_dict[line.split()[0]] = raw_tr.class_to_idx[line.split()[1]]
-
     X_tr,Y_tr,X_te, Y_te = [],[],[],[]
-    count=0
-    coun_list = [1000*(x+1) for x in range(100)] # can not load at once, memory limitation
     
-    for ct in coun_list:
-        while count < ct:
-            image,target = raw_tr[count]
+    div_list = [len(raw_tr)*(x+1)//10 for x in range(10)] # can not load at once, memory limitation
+    i=0
+    for count in div_list:
+        loop = count - i
+        for j in range(loop):
+            image,target = raw_tr[i]
             X_tr.append(np.array(image))
             Y_tr.append(target)
-            count += 1
-    count=0
-    coun_list = [1000*(x+1) for x in range(10)]
-    for ct in coun_list:
-        while count < ct:
-            image,target = raw_te[count]
-            img_pth = raw_te.imgs[count][0].split('/')[-1]
-            X_te.append(np.array(image))
-            Y_te.append(val_dict[img_pth])
-            count += 1
-    return torch.from_numpy(np.array(X_tr)), torch.from_numpy(np.array(Y_tr)), torch.from_numpy(np.array(X_te)), torch.from_numpy(np.array(Y_te))
+            i += 1
 
+    for i in range(len(raw_te)):
+        img, label = raw_te[i]
+        img_pth = raw_te.imgs[i][0].split('/')[-1]
+        X_te.append(np.array(img))
+        Y_te.append(val_dict[img_pth])
+
+    return X_tr,Y_tr,X_te, Y_te
+    # torch.tensor(X_tr), torch.tensor(Y_tr), torch.tensor(X_te), torch.tensor(Y_te)
+    
 def get_MNIST(path):
     raw_tr = datasets.MNIST(path + '/mnist', train=True, download=True)
     raw_te = datasets.MNIST(path + '/mnist', train=False, download=True)
-    print(type(raw_tr))
     X_tr = raw_tr.data
     Y_tr = raw_tr.targets
     X_te = raw_te.data
@@ -93,6 +93,15 @@ def get_CIFAR10(path):
     Y_te = torch.from_numpy(np.array(data_te.targets))
     return X_tr, Y_tr, X_te, Y_te
 
+def get_CIFAR100(path):
+    data_tr = datasets.CIFAR10(path + '/cifar100', train=True, download=True)
+    data_te = datasets.CIFAR10(path + '/cifar100', train=False, download=True)
+    X_tr = data_tr.data
+    Y_tr = torch.from_numpy(np.array(data_tr.targets))
+    X_te = data_te.data
+    Y_te = torch.from_numpy(np.array(data_te.targets))
+    return X_tr, Y_tr, X_te, Y_te
+
 def get_GTSRB(path):
     train_dir = os.path.join(path, 'gtsrb/train')
     test_dir = os.path.join(path, 'gtsrb/test')
@@ -114,6 +123,8 @@ def get_handler(name):
     elif name.lower() == 'svhn':
         return DataHandler2
     elif name.lower() == 'cifar10':
+        return DataHandler3
+    elif name.lower() == 'cifar100':
         return DataHandler3
     elif name.lower() == 'gtsrb':
         return DataHandler3
