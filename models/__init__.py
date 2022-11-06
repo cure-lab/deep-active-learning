@@ -1,5 +1,5 @@
 from .vgg import VGG
-from .resnet import ResNet18, ResNet18_64
+from .resnet import ResNet18, ResNet34
 from .wa_model import get_wa_net
 from .lossnet import LossNet
 from .linear import LeNet
