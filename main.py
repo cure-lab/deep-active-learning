@@ -42,7 +42,7 @@ parser.add_argument('--seed', type=int, default=1,
 # model and data
 parser.add_argument('--model', help='model - resnet, vgg, or mlp', type=str)
 parser.add_argument('--dataset', help='dataset (non-openML)', type=str, default='')
-parser.add_argument('--data_path', help='data path', type=str, default='./dataset')
+parser.add_argument('--data_path', help='data path', type=str, default='./datasets')
 parser.add_argument('--save_path', help='result save save_dir', default='./save')
 parser.add_argument('--save_file', help='result save save_dir', default='result.csv')
 
@@ -213,6 +213,22 @@ args_pool = {'mnist':
                  'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 512, 'num_workers': 8},
                  'normalize':{'mean': (0.485, 0.456, 0.406), 'std': (0.229, 0.224, 0.225)},
+                },
+            'cifar100': 
+               {
+                'n_class':100,
+                'channels':3,
+                'size': 32,
+                'transform_tr': transforms.Compose([
+                                transforms.RandomCrop(size = 32, padding=4),
+                                transforms.RandomHorizontalFlip(),
+                                transforms.ToTensor(), 
+                                transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))]),
+                'transform_te': transforms.Compose([transforms.ToTensor(), 
+                                transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))]),
+                'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
+                'loader_te_args':{'batch_size': 512, 'num_workers': 8},
+                'normalize':{'mean': (0.5071, 0.4867, 0.4408), 'std': (0.2675, 0.2565, 0.2761)},
                 }
         }
 
@@ -226,8 +242,8 @@ def main():
         os.makedirs(args.data_path)
     log = os.path.join(args.save_path,
                         'log_seed_{}.txt'.format(args.seed))
-
     # print the args
+    print(args.save_model)
     print_log('save path : {}'.format(args.save_path), log)
     state = {k: v for k, v in args._get_kwargs()}
     print_log(str(state), log)
@@ -249,6 +265,12 @@ def main():
 
     # load dataset
     X_tr, Y_tr, X_te, Y_te = get_dataset(args.dataset, args.data_path)
+    if type(X_tr) is list:
+        X_tr = np.array(X_tr)
+        Y_tr = np.array(Y_tr)
+        X_te = np.array(X_te)
+        Y_te = np.array(Y_te)
+
     if type(X_tr[0]) is not np.ndarray:
         X_tr = X_tr.numpy()
         X_te = X_te.numpy()
