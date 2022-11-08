@@ -94,8 +94,8 @@ def get_CIFAR10(path):
     return X_tr, Y_tr, X_te, Y_te
 
 def get_CIFAR100(path):
-    data_tr = datasets.CIFAR10(path + '/cifar100', train=True, download=True)
-    data_te = datasets.CIFAR10(path + '/cifar100', train=False, download=True)
+    data_tr = datasets.CIFAR100(path + '/cifar100', train=True, download=True)
+    data_te = datasets.CIFAR100(path + '/cifar100', train=False, download=True)
     X_tr = data_tr.data
     Y_tr = torch.from_numpy(np.array(data_tr.targets))
     X_te = data_te.data
