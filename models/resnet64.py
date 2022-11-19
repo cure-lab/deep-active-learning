@@ -91,15 +91,14 @@ class resnet_fea(nn.Module):
         out2 = self.layer2(out1)
         out3 = self.layer3(out2)
         out4 = self.layer4(out3)
-        avg_pool_size = img_size//8
-        out = F.avg_pool2d(out4, avg_pool_size)
+        out = F.avg_pool2d(out4, 4)
         out = out.view(out.size(0), -1)
         return out, [out1, out2, out3, out4]
 
 class resnet_clf(nn.Module):
     def __init__(self, block, n_class=10):
         super(resnet_clf, self).__init__()
-        self.linear = nn.Linear(128 * block.expansion, n_class)
+        self.linear = nn.Linear(128 * block.expansion * 4, n_class)
 
     def forward(self, x):
         # emb = x.view(x.size(0), -1)
@@ -123,7 +122,7 @@ class ResNet(nn.Module):
     def __init__(self, block, num_blocks, n_class=10, bayesian=False):
         super(ResNet, self).__init__()
         # self.in_planes = 16
-        self.embDim = 128 * block.expansion
+        self.embDim = 128 * block.expansion * 4
         # self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
         # self.bn1 = nn.BatchNorm2d(16)
         # self.layer1 = self._make_layer(block, 16, num_blocks[0], stride=1)
@@ -174,19 +173,19 @@ class ResNet(nn.Module):
         return self.embDim
 
 
-def ResNet18(n_class, bayesian=False):
+def ResNet18_64(n_class, bayesian=False):
     return ResNet(BasicBlock, [2,2,2,2], n_class=n_class, bayesian=bayesian)
 
-def ResNet34(n_class, bayesian=False):
+def ResNet34_64(n_class, bayesian=False):
     return ResNet(BasicBlock, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet50(n_class, bayesian=False):
+def ResNet50_64(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,4,6,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet101(n_class, bayesian=False):
+def ResNet101_64(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,4,23,3], n_class=n_class, bayesian=bayesian)
 
-def ResNet152(n_class, bayesian=False):
+def ResNet152_64(n_class, bayesian=False):
     return ResNet(Bottleneck, [3,8,36,3], n_class=n_class, bayesian=bayesian)
 
 def test():

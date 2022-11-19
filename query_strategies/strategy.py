@@ -234,7 +234,7 @@ class Strategy:
         loader_te = DataLoader(self.handler(X, Y, transform=transform), pin_memory=True,
                             shuffle=False, **self.args.loader_te_args)
 
-        self.clf.classifier.train()
+        self.clf.train()
 
         probs = torch.zeros([n_drop, len(Y), len(np.unique(Y))])
         with torch.no_grad():

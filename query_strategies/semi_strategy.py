@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from copy import deepcopy
 from utils import print_log, time_string, AverageMeter, RecorderMeter, convert_secs2time, adjust_learning_rate
 import time
+import copy
 import sys, os
 from torchvision.utils import save_image
 from tqdm import tqdm
@@ -47,6 +48,10 @@ class semi_Strategy:
         self.net = net.to(self.device)
         self.clf = deepcopy(net.to(self.device))
         self.ema_model = deepcopy(net.to(self.device))
+        if self.args.add_imagenet:
+            from dataset import get_ImageNet
+            self.extra_X, self.extra_Y = get_ImageNet(self.args.data_path)
+            print(self.extra_X.shape)
         for param in self.ema_model.parameters():
             param.detach_()
         
@@ -72,7 +77,7 @@ class semi_Strategy:
         for batch_idx in range(int(train_iteration)):
            
             try:
-                inputs_x, targets_x, _ = labeled_train_iter.next()
+                inputs_x, targets_x, _ = next(labeled_train_iter)
                 out, e1 = self.clf(inputs_x.to(self.device))
                 loss = F.cross_entropy(out, targets_x.to(self.device))
 
@@ -83,7 +88,7 @@ class semi_Strategy:
                 inputs_x, targets_x = inputs_x.to(self.device), targets_x.to(self.device) 
             except:
                 labeled_train_iter = iter(loader_labeled)
-                inputs_x, targets_x, _ = labeled_train_iter.next()
+                inputs_x, targets_x, _ = next(labeled_train_iter)
                 out, e1 = self.clf(inputs_x.to(self.device))
                 loss = F.cross_entropy(out, targets_x.to(self.device))
                 ce_loss += loss.item()
@@ -95,12 +100,12 @@ class semi_Strategy:
             
 
             try:
-                (inputs_u,inputs_u2), _ , _ = unlabeled_train_iter.next()
+                (inputs_u,inputs_u2), _ , _ = next(unlabeled_train_iter)
                 inputs_u = inputs_u.to(self.device) 
                 inputs_u2 = inputs_u2.to(self.device)
             except:
                 unlabeled_train_iter = iter(loader_unlabeled)
-                (inputs_u,inputs_u2), _ , _ = unlabeled_train_iter.next()
+                (inputs_u,inputs_u2), _ , _ = next(unlabeled_train_iter)
                 inputs_u = inputs_u.to(self.device) 
                 inputs_u2 = inputs_u2.to(self.device)
 
@@ -205,8 +210,13 @@ class semi_Strategy:
                                     # sampler = DistributedSampler(train_data),
                                     worker_init_fn=self.seed_worker,
                                     **self.args.loader_tr_args)
-
-            loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] , 
+            if self.args.add_imagenet:
+                loader_unlabeled = DataLoader(self.handler(np.concatenate([self.X[idxs_unlabeled],self.extra_X],axis=0) , 
+                                    torch.Tensor(np.concatenate([self.Y.numpy()[idxs_unlabeled],self.extra_Y],axis=0)).long(), 
+                                    transform=TransformTwice(transform)), shuffle=True, 
+                                    **self.args.loader_tr_args)
+            else:
+                loader_unlabeled = DataLoader(self.handler(self.X[idxs_unlabeled] , 
                                     torch.Tensor(self.Y.numpy()[idxs_unlabeled]).long(), 
                                     transform=TransformTwice(transform)), shuffle=True, 
                                     **self.args.loader_tr_args)
@@ -223,15 +233,16 @@ class semi_Strategy:
                 
                 # train one epoch
                 train_acc, train_los, ce_loss = self._train(epoch, loader_labeled, loader_unlabeled, optimizer, ema_optimizer,train_iteration)
-                
+                if self.args.dataset=='tinyimagenet' or self.args.dataset=='cifar100':
+                    self.ema_model=copy.deepcopy(self.clf)
                 # measure elapsed time
                 epoch_time.update(time.time() - ts)
 
                 print_log('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
                                                                                    need_time, current_learning_rate
                                                                                    ) \
-                + ' [Best : Train Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(True),
-                                                               1. - recorder.max_accuracy(True)), self.args.log)
+                + ' [Best : Train Accuracy={:.2f}, Test Accuracy={:.2f}]'.format(recorder.max_accuracy(istrain=True),
+                                                               recorder.max_accuracy(istrain=False)), self.args.log)
                 
                 
                 test_acc = self.predict(self.X_te, self.Y_te)
@@ -241,10 +252,11 @@ class semi_Strategy:
                 if self.args.save_model and test_acc > best_test_acc:
                     best_test_acc = test_acc
                     self.save_model()
+                    self.best_model = copy.deepcopy(self.clf)
 
             self.clf = self.clf.module
                 
-
+        self.clf = self.best_model 
         best_test_acc = recorder.max_accuracy(istrain=False)
         return best_test_acc                
 
@@ -255,7 +267,7 @@ class semi_Strategy:
             loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
         else: 
-            loader_te = DataLoader(self.handler(X.numpy(), Y, transform=transform),
+            loader_te = DataLoader(self.handler(X, Y, transform=transform),
                             shuffle=False, **self.args.loader_te_args)
 
         self.clf.eval()

@@ -15,7 +15,6 @@ import models
 from utils import print_log
 # import torch.distributed as dist
 
-# code based on https://github.com/ej0cl6/deep-active-learning"
 os.environ['CUBLAS_WORKSPACE_CONFIG']= ':16:8'
 
 query_strategies_name = sorted(name for name in query_strategies.__dict__
@@ -90,6 +89,9 @@ parser.add_argument('--save_model',
 parser.add_argument('--load_ckpt', 
                     action='store_true',
                     help='load model from memory, True or False')
+parser.add_argument('--add_imagenet', 
+                    action='store_true',
+                    help='load model from memory, True or False')
 
 # automatically set
 # parser.add_argument("--local_rank", type=int)
@@ -110,7 +112,7 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed(args.seed)
     # True ensures the algorithm selected by CUFA is deterministic
     # torch.backends.cudnn.deterministic = True
-    torch.set_deterministic(True)
+    # torch.set_deterministic(True)
     # False ensures CUDA select the same algorithm each time the application is run
     torch.backends.cudnn.benchmark = False
 
@@ -210,8 +212,8 @@ args_pool = {'mnist':
                  'transform_te': transforms.Compose([
                                     transforms.ToTensor(), 
                                     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
-                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
-                 'loader_te_args':{'batch_size': 512, 'num_workers': 8},
+                 'loader_tr_args':{'batch_size': 1024, 'num_workers': 4},
+                 'loader_te_args':{'batch_size': 512, 'num_workers': 4},
                  'normalize':{'mean': (0.485, 0.456, 0.406), 'std': (0.229, 0.224, 0.225)},
                 },
             'cifar100': 
@@ -226,7 +228,7 @@ args_pool = {'mnist':
                                 transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))]),
                 'transform_te': transforms.Compose([transforms.ToTensor(), 
                                 transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))]),
-                'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
+                'loader_tr_args':{'batch_size': 2048, 'num_workers': 4},
                 'loader_te_args':{'batch_size': 512, 'num_workers': 8},
                 'normalize':{'mean': (0.5071, 0.4867, 0.4408), 'std': (0.2675, 0.2565, 0.2761)},
                 }
@@ -267,9 +269,9 @@ def main():
     X_tr, Y_tr, X_te, Y_te = get_dataset(args.dataset, args.data_path)
     if type(X_tr) is list:
         X_tr = np.array(X_tr)
-        Y_tr = np.array(Y_tr)
+        Y_tr = torch.tensor(np.array(Y_tr))
         X_te = np.array(X_te)
-        Y_te = np.array(Y_te)
+        Y_te = torch.tensor(np.array(Y_te))
 
     if type(X_tr[0]) is not np.ndarray:
         X_tr = X_tr.numpy()
@@ -291,8 +293,9 @@ def main():
     NUM_INIT_LB = int(args.nStart*n_pool/100)
     NUM_QUERY = int(args.nQuery*n_pool/100) if args.nStart!= 100 else 0
     NUM_ROUND = int((int(args.nEnd*n_pool/100) - NUM_INIT_LB)/ NUM_QUERY) if args.nStart!= 100 else 0
-    if (int(args.nEnd*n_pool/100) - NUM_INIT_LB)% NUM_QUERY != 0:
-        NUM_ROUND += 1
+    if NUM_QUERY != 0:
+        if (int(args.nEnd*n_pool/100) - NUM_INIT_LB)% NUM_QUERY != 0:
+            NUM_ROUND += 1
     
     print_log("[init={:02d}] [query={:02d}] [end={:02d}]".format(NUM_INIT_LB, NUM_QUERY, int(args.nEnd*n_pool/100)), log)
 
@@ -325,6 +328,7 @@ def main():
     # load pretrained model
     if args.load_ckpt:
         strategy.load_model()
+        idxs_lb = strategy.idxs_lb
     else:
         strategy.train(alpha=alpha, n_epoch=args.n_epoch)
     test_acc= strategy.predict(X_te, Y_te)

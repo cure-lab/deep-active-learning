@@ -25,6 +25,29 @@ def get_dataset(name, path):
     elif name.lower() == 'tinyimagenet':
         return get_tinyImageNet(path)
 
+def get_ImageNet(path):
+    raw_tr = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/train')
+    imagenet_tr_path = path +'imagenet-object-localization-challenge/ILSVRC/Data/CLS-LOC/train/'
+    from torchvision import transforms
+    transform = transforms.Compose([transforms.Resize((64, 64))])
+    imagenet_folder = datasets.ImageFolder(imagenet_tr_path, transform=transform)
+    idx_to_class = {}
+    for (class_num, idx) in imagenet_folder.class_to_idx.items():
+        idx_to_class[idx] = class_num
+    X_tr,Y_tr = [], []
+    item_list = imagenet_folder.imgs
+    for (class_num, idx) in raw_tr.class_to_idx.items():
+        new_img_num = 0
+        for ii, (path, target) in enumerate(item_list):
+            if idx_to_class[target] == class_num:
+                X_tr.append(np.array(imagenet_folder[ii][0]))
+                Y_tr.append(idx)
+                new_img_num += 1
+            if new_img_num >= 250:
+                break
+            
+    return np.array(X_tr), np.array(Y_tr)
+
 
 def get_tinyImageNet(path):
     # 100000 train 10000 test
@@ -204,6 +227,10 @@ def get_wa_handler(name):
     elif name.lower() == 'svhn':
         return Wa_datahandler2
     elif name.lower() == 'cifar10':
+        return  Wa_datahandler3
+    elif name.lower() == 'cifar100':
+        return  Wa_datahandler3
+    elif name.lower() == 'tinyimagenet':
         return  Wa_datahandler3
     elif name.lower() == 'mnist':
         return Wa_datahandler1
