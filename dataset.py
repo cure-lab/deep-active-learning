@@ -24,6 +24,8 @@ def get_dataset(name, path):
         return get_GTSRB(path)
     elif name.lower() == 'tinyimagenet':
         return get_tinyImageNet(path)
+    elif name.lower() == 'mvtec':
+        return get_mvtec(path)
 
 def get_ImageNet(path):
     raw_tr = datasets.ImageFolder(path + '/tinyImageNet/tiny-imagenet-200/train')
@@ -137,6 +139,18 @@ def get_GTSRB(path):
 
     return X_tr, Y_tr, X_te, Y_te
 
+def get_mvtec(path):
+    train_dir = os.path.join(path, 'mvtec/train')
+    test_dir = os.path.join(path, 'mvtec/test')
+    train_data = torchvision.datasets.ImageFolder(train_dir)
+    test_data = torchvision.datasets.ImageFolder(test_dir)
+    X_tr = np.array([np.asarray(datasets.folder.default_loader(s[0])) for s in train_data.samples])
+    Y_tr = torch.from_numpy(np.array(train_data.targets))
+    X_te = np.array([np.asarray(datasets.folder.default_loader(s[0])) for s in test_data.samples])
+    Y_te = torch.from_numpy(np.array(test_data.targets))
+
+    return X_tr, Y_tr, X_te, Y_te
+
 
 def get_handler(name):
     if name.lower() == 'mnist':
@@ -149,7 +163,7 @@ def get_handler(name):
         return DataHandler3
     elif name.lower() == 'cifar100':
         return DataHandler3
-    elif name.lower() == 'gtsrb':
+    elif name.lower() == 'gtsrb' or 'mvtec':
         return DataHandler3
     elif name.lower() == 'tinyimagenet':
         return DataHandler3
@@ -234,7 +248,7 @@ def get_wa_handler(name):
         return  Wa_datahandler3
     elif name.lower() == 'mnist':
         return Wa_datahandler1
-    elif name.lower() == 'gtsrb':
+    elif name.lower() == 'gtsrb' or 'mvtec':
         return Wa_datahandler3
 
 

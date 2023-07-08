@@ -94,7 +94,7 @@ parser.add_argument('--add_imagenet',
                     help='load model from memory, True or False')
 
 # automatically set
-# parser.add_argument("--local_rank", type=int)
+parser.add_argument("--local_rank", type=int)
 
 ##########################################################################
 args = parser.parse_args()
@@ -113,8 +113,8 @@ if torch.cuda.is_available():
     # True ensures the algorithm selected by CUFA is deterministic
     # torch.backends.cudnn.deterministic = True
     # torch.set_deterministic(True)
-    # False ensures CUDA select the same algorithm each time the application is run
-    torch.backends.cudnn.benchmark = False
+    # # False ensures CUDA select the same algorithm each time the application is run
+    # torch.backends.cudnn.benchmark = False
 
 ############################# Specify the hyperparameters #######################################
  
@@ -199,6 +199,25 @@ args_pool = {'mnist':
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
                  'normalize':{'mean': [0.3337, 0.3064, 0.3171], 'std': [0.2672, 0.2564, 0.2629]},
                 },
+            'mvtec': 
+               {
+                 'n_class':2,
+                 'channels':3,
+                 'size': 32,
+                 'transform_tr': transforms.Compose([
+                                    transforms.Resize((224, 224)),
+                                    # transforms.RandomCrop(size = 32, padding=4),
+                                    # transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(), 
+                                    transforms.Normalize([0.3337, 0.3064, 0.3171], [0.2672, 0.2564, 0.2629])]),
+                 'transform_te': transforms.Compose([
+                                    transforms.Resize((32, 32)),
+                                    transforms.ToTensor(), 
+                                    transforms.Normalize([0.3337, 0.3064, 0.3171], [0.2672, 0.2564, 0.2629])]),
+                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
+                 'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
+                 'normalize':{'mean': [0.3337, 0.3064, 0.3171], 'std': [0.2672, 0.2564, 0.2629]},
+                },
             'tinyimagenet': 
                {
                 'n_class':200,
@@ -238,6 +257,13 @@ args_pool = {'mnist':
 ###############################################################################
 
 def main():
+    # Using 2 GPUs
+    ngpus = torch.cuda.device_count()
+    torch.cuda.set_device(args.local_rank % ngpus)
+    device = torch.device("cuda", args.local_rank)
+
+
+
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path)
     if not os.path.isdir(args.data_path):
@@ -333,6 +359,7 @@ def main():
         strategy.train(alpha=alpha, n_epoch=args.n_epoch)
     test_acc= strategy.predict(X_te, Y_te)
 
+    
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = test_acc
     print_log('==>> Testing accuracy {}'.format(acc[0]), log)
