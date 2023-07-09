@@ -16,6 +16,8 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 from .util import AugMixDataset
 from sklearn.metrics import pairwise_distances
+import sklearn.metrics as metrics
+
 class Strategy:
     def __init__(self, X, Y, X_te, Y_te, idxs_lb, net, handler, args):
         self.X = X  # vector
@@ -90,56 +92,51 @@ class Strategy:
 
     
     def train(self, alpha=0.1, n_epoch=10):
-        self.clf =  deepcopy(self.net)
-        # if torch.cuda.device_count() > 1:
+        self.clf = deepcopy(self.net)
         print("Let's use", torch.cuda.device_count(), "GPUs!")
-        # self.clf = nn.parallel.DistributedDataParallel(self.clf,
-                                                        # find_unused_parameters=True,
-                                                        # )
         self.clf = nn.DataParallel(self.clf).to(self.device)
         parameters = self.clf.parameters()
-        optimizer = optim.SGD(parameters, lr = self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
+        optimizer = optim.SGD(parameters, lr=self.args.lr, weight_decay=5e-4, momentum=self.args.momentum)
 
         idxs_train = np.arange(self.n_pool)[self.idxs_lb]
-        
 
         epoch_time = AverageMeter()
         recorder = RecorderMeter(n_epoch)
-        epoch = 0 
+        epoch = 0
         train_acc = 0.
         best_test_acc = 0.
         if idxs_train.shape[0] != 0:
             transform = self.args.transform_tr
 
-            train_data = self.handler(self.X[idxs_train], 
-                                torch.Tensor(self.Y[idxs_train]).long() if type(self.Y) is np.ndarray else  torch.Tensor(self.Y.numpy()[idxs_train]).long(), 
+            train_data = self.handler(self.X[idxs_train],
+                                    torch.Tensor(self.Y[idxs_train]).long() if type(self.Y) is np.ndarray else torch.Tensor(
+                                        self.Y.numpy()[idxs_train]).long(),
                                     transform=transform)
 
-            loader_tr = DataLoader(train_data, 
-                                    shuffle=True,
-                                    pin_memory=True,
-                                    # sampler = DistributedSampler(train_data),
-                                    worker_init_fn=self.seed_worker,
-                                    generator=self.g,
-                                    **self.args.loader_tr_args)
+            loader_tr = DataLoader(train_data,
+                                shuffle=True,
+                                pin_memory=True,
+                                worker_init_fn=self.seed_worker,
+                                generator=self.g,
+                                **self.args.loader_tr_args)
             for epoch in range(n_epoch):
                 ts = time.time()
-                current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule, self.args)
-                
-                # Display simulation time
+                current_learning_rate, _ = adjust_learning_rate(optimizer, epoch, self.args.gammas, self.args.schedule,
+                                                                self.args)
+
                 need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (n_epoch - epoch))
-                need_time = '[{} Need: {:02d}:{:02d}:{:02d}]'.format(self.args.strategy, need_hour, need_mins, need_secs)
-                
-                # train one epoch
+                need_time = '[{} Need: {:02d}:{:02d}:{:02d}]'.format(self.args.strategy, need_hour, need_mins,
+                                                                    need_secs)
+
                 train_acc, train_los = self._train(epoch, loader_tr, optimizer)
                 test_acc = self.predict(self.X_te, self.Y_te)
-                # measure elapsed time
+
                 epoch_time.update(time.time() - ts)
                 print('\n==>>{:s} [Epoch={:03d}/{:03d}] {:s} [LR={:6.4f}]'.format(time_string(), epoch, n_epoch,
-                                                                                   need_time, current_learning_rate
-                                                                                   ) \
-                + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
-                                                               1. - recorder.max_accuracy(False)))
+                                                                                need_time, current_learning_rate
+                                                                                ) \
+                    + ' [Best : Test Accuracy={:.2f}, Error={:.2f}]'.format(recorder.max_accuracy(False),
+                                                                            1. - recorder.max_accuracy(False)))
                 recorder.update(epoch, train_los, train_acc, 0, test_acc)
 
                 if self.args.save_model and test_acc > best_test_acc:
@@ -149,7 +146,15 @@ class Strategy:
             self.clf = self.clf.module
 
         best_test_acc = recorder.max_accuracy(istrain=False)
-        return best_test_acc                
+
+        # Calculate AUROC
+        test_probs = self.predict_prob(self.X_te, self.Y_te)
+        y_true = np.array(self.Y_te)
+        y_scores = test_probs[:, 1]  # Use the probability of the positive class
+        auroc = metrics.roc_auc_score(y_true, y_scores)
+
+        return best_test_acc, auroc
+                
 
 
     def predict(self, X, Y):
