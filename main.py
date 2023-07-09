@@ -13,6 +13,11 @@ import time
 import query_strategies 
 import models
 from utils import print_log
+
+from sklearn.metrics import roc_auc_score
+import sklearn.metrics as metrics
+
+
 # import torch.distributed as dist
 
 os.environ['CUBLAS_WORKSPACE_CONFIG']= ':16:8'
@@ -118,87 +123,7 @@ if torch.cuda.is_available():
 
 ############################# Specify the hyperparameters #######################################
  
-args_pool = {'mnist':
-                { 
-                 'n_class':10,
-                 'channels':1,
-                 'size': 28,
-                 'transform_tr': transforms.Compose([
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor(), 
-                                transforms.Normalize((0.1307,), (0.3081,))]),
-                 'transform_te': transforms.Compose([transforms.ToTensor(), 
-                                transforms.Normalize((0.1307,), (0.3081,))]),
-                 'loader_tr_args':{'batch_size': 128, 'num_workers': 8},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
-                 'normalize':{'mean': (0.1307,), 'std': (0.3081,)},
-                },
-            'fashionmnist':
-                {
-                 'n_class':10,
-                'channels':1,
-                'size': 28,
-                'transform_tr': transforms.Compose([
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor(), 
-                                transforms.Normalize((0.1307,), (0.3081,))]),
-                 'transform_te': transforms.Compose([transforms.ToTensor(), 
-                                    transforms.Normalize((0.1307,), (0.3081,))]),
-                 'loader_tr_args':{'batch_size': 256, 'num_workers': 1},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 1},
-                 'normalize':{'mean': (0.1307,), 'std': (0.3081,)},
-                },
-            'svhn':
-                {
-                 'n_class':10,
-                'channels':3,
-                'size': 32,
-                'transform_tr': transforms.Compose([ 
-                                    transforms.RandomCrop(size = 32, padding=4),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970))]),
-                 'transform_te': transforms.Compose([transforms.ToTensor(), 
-                                    transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970))]),
-                 'loader_tr_args':{'batch_size': 128, 'num_workers': 8},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
-                 'normalize':{'mean': (0.4377, 0.4438, 0.4728), 'std': (0.1980, 0.2010, 0.1970)},
-                },
-            'cifar10':
-                {
-                 'n_class':10,
-                 'channels':3,
-                 'size': 32,
-                 'transform_tr': transforms.Compose([
-                                    transforms.RandomCrop(size = 32, padding=4),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.ToTensor(), 
-                                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
-                 'transform_te': transforms.Compose([transforms.ToTensor(), 
-                                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
-                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
-                 'loader_te_args':{'batch_size': 512, 'num_workers': 8},
-                 'normalize':{'mean': (0.4914, 0.4822, 0.4465), 'std': (0.2470, 0.2435, 0.2616)},
-                 },
-            'gtsrb': 
-               {
-                 'n_class':43,
-                 'channels':3,
-                 'size': 32,
-                 'transform_tr': transforms.Compose([
-                                    transforms.Resize((32, 32)),
-                                    transforms.RandomCrop(size = 32, padding=4),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.ToTensor(), 
-                                    transforms.Normalize([0.3337, 0.3064, 0.3171], [0.2672, 0.2564, 0.2629])]),
-                 'transform_te': transforms.Compose([
-                                    transforms.Resize((32, 32)),
-                                    transforms.ToTensor(), 
-                                    transforms.Normalize([0.3337, 0.3064, 0.3171], [0.2672, 0.2564, 0.2629])]),
-                 'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
-                 'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
-                 'normalize':{'mean': [0.3337, 0.3064, 0.3171], 'std': [0.2672, 0.2564, 0.2629]},
-                },
+args_pool = {
             'mvtec': 
                {
                  'n_class':2,
@@ -217,39 +142,6 @@ args_pool = {'mnist':
                  'loader_tr_args':{'batch_size': 256, 'num_workers': 8},
                  'loader_te_args':{'batch_size': 1024, 'num_workers': 8},
                  'normalize':{'mean': [0.3337, 0.3064, 0.3171], 'std': [0.2672, 0.2564, 0.2629]},
-                },
-            'tinyimagenet': 
-               {
-                'n_class':200,
-                'channels':3,
-                'size': 64,
-                'transform_tr': transforms.Compose([
-                                    transforms.RandomCrop(size = 64, padding=4),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.ToTensor(), 
-                                    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
-                 'transform_te': transforms.Compose([
-                                    transforms.ToTensor(), 
-                                    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]),
-                 'loader_tr_args':{'batch_size': 1024, 'num_workers': 4},
-                 'loader_te_args':{'batch_size': 512, 'num_workers': 4},
-                 'normalize':{'mean': (0.485, 0.456, 0.406), 'std': (0.229, 0.224, 0.225)},
-                },
-            'cifar100': 
-               {
-                'n_class':100,
-                'channels':3,
-                'size': 32,
-                'transform_tr': transforms.Compose([
-                                transforms.RandomCrop(size = 32, padding=4),
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor(), 
-                                transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))]),
-                'transform_te': transforms.Compose([transforms.ToTensor(), 
-                                transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))]),
-                'loader_tr_args':{'batch_size': 2048, 'num_workers': 4},
-                'loader_te_args':{'batch_size': 512, 'num_workers': 8},
-                'normalize':{'mean': (0.5071, 0.4867, 0.4408), 'std': (0.2675, 0.2565, 0.2761)},
                 }
         }
 
@@ -313,11 +205,15 @@ def main():
     if args.dataset == 'mnist':
         args.schedule = [20, 40]
 
-    args.nEnd =  args.nEnd if args.nEnd != -1 else 100
+    # args.nEnd =  args.nEnd if args.nEnd != -1 else 100
+    args.nEnd =  args.nEnd if args.nEnd != -1 else 50
     args.nQuery = args.nQuery if args.nQuery != -1 else (args.nEnd - args.nStart)
-
-    NUM_INIT_LB = int(args.nStart*n_pool/100)
-    NUM_QUERY = int(args.nQuery*n_pool/100) if args.nStart!= 100 else 0
+    
+    args.nStart = 1
+    # NUM_INIT_LB = int(args.nStart*n_pool/100)
+    NUM_INIT_LB = 5
+    # NUM_QUERY = int(args.nQuery*n_pool/100) if args.nStart!= 100 else 0
+    NUM_QUERY = 1
     NUM_ROUND = int((int(args.nEnd*n_pool/100) - NUM_INIT_LB)/ NUM_QUERY) if args.nStart!= 100 else 0
     if NUM_QUERY != 0:
         if (int(args.nEnd*n_pool/100) - NUM_INIT_LB)% NUM_QUERY != 0:
@@ -359,10 +255,19 @@ def main():
         strategy.train(alpha=alpha, n_epoch=args.n_epoch)
     test_acc= strategy.predict(X_te, Y_te)
 
+    pred_proba = strategy.predict_prob(X_te, Y_te)  # Predict class probabilities
+    # Calculate AUROC
+    y_true = Y_te
+    y_scores = pred_proba[:, 1]  # Use the probabilities of the positive class
+    auroc_bf = metrics.roc_auc_score(y_true, y_scores)
+    
     
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = test_acc
+
     print_log('==>> Testing accuracy {}'.format(acc[0]), log)
+    print_log('==>> Testing auroc {}'.format(auroc_bf), log)
+
 
     out_file = os.path.join(args.save_path, args.save_file)
     for rd in range(1, NUM_ROUND+1):
@@ -381,7 +286,9 @@ def main():
        
         # update
         strategy.update(idxs_lb)
-        best_test_acc = strategy.train(alpha=alpha, n_epoch=args.n_epoch)
+        best_test_acc, auroc_it = strategy.train(alpha=alpha, n_epoch=args.n_epoch)
+
+
 
         t_iter = time.time() - ts
         
@@ -389,6 +296,7 @@ def main():
         # test_acc = strategy.predict(X_te, Y_te)
         acc[rd] = best_test_acc
         print_log(str(sum(idxs_lb)) + '\t' + 'testing accuracy {}'.format(acc[rd]), log)
+        print_log(str(sum(idxs_lb)) + '\t' + 'testing auroc {}'.format(auroc_it), log)
 
         print_log("logging...", log)
         with open(out_file, 'a+') as f:
@@ -408,6 +316,10 @@ def main():
                             acc[0],
                             acc[rd],
                             acc[rd] - acc[0],
+                            'aurocCompare',
+                            auroc_bf,
+                            auroc_it,
+                            auroc_it - auroc_bf,
                             't_query',
                             tp,
                             't_iter',
