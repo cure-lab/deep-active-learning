@@ -99,7 +99,7 @@ parser.add_argument('--add_imagenet',
                     help='load model from memory, True or False')
 
 # automatically set
-parser.add_argument("--local_rank", type=int)
+parser.add_argument("--local_rank", type=int )
 
 ##########################################################################
 args = parser.parse_args()
@@ -128,7 +128,7 @@ args_pool = {
                {
                  'n_class':2,
                  'channels':3,
-                 'size': 32,
+                 'size': 1024,
                  'transform_tr': transforms.Compose([
                                     transforms.Resize((224, 224)),
                                     # transforms.RandomCrop(size = 32, padding=4),
@@ -201,20 +201,16 @@ def main():
     n_pool = len(Y_tr)
     n_test = len(Y_te)
 
-    # parameters
-    if args.dataset == 'mnist':
-        args.schedule = [20, 40]
-
     # args.nEnd =  args.nEnd if args.nEnd != -1 else 100
     args.nEnd =  args.nEnd if args.nEnd != -1 else 50
     args.nQuery = args.nQuery if args.nQuery != -1 else (args.nEnd - args.nStart)
     
-    args.nStart = 1
     # NUM_INIT_LB = int(args.nStart*n_pool/100)
-    NUM_INIT_LB = 5
+    NUM_INIT_LB = 6
     # NUM_QUERY = int(args.nQuery*n_pool/100) if args.nStart!= 100 else 0
     NUM_QUERY = 1
-    NUM_ROUND = int((int(args.nEnd*n_pool/100) - NUM_INIT_LB)/ NUM_QUERY) if args.nStart!= 100 else 0
+    # NUM_ROUND = int((int(args.nEnd*n_pool/100) - NUM_INIT_LB)/ NUM_QUERY) if args.nStart!= 100 else 0
+    NUM_ROUND = 100
     if NUM_QUERY != 0:
         if (int(args.nEnd*n_pool/100) - NUM_INIT_LB)% NUM_QUERY != 0:
             NUM_ROUND += 1
@@ -257,7 +253,7 @@ def main():
 
     pred_proba = strategy.predict_prob(X_te, Y_te)  # Predict class probabilities
     # Calculate AUROC
-    y_true = Y_te
+    y_true = np.array(Y_te)
     y_scores = pred_proba[:, 1]  # Use the probabilities of the positive class
     auroc_bf = metrics.roc_auc_score(y_true, y_scores)
     
@@ -305,13 +301,9 @@ def main():
                             args.strategy,
                             args.seed,
                             'budget',
-                            args.nEnd,
-                            'nStart', 
-                            args.nStart,
-                            'nQuery',
-                            args.nQuery,
+                            NUM_ROUND*NUM_QUERY,
                             'labeled',
-                            min(args.nStart + args.nQuery*rd, args.nEnd),
+                            str(sum(idxs_lb)),
                             'accCompare',
                             acc[0],
                             acc[rd],
