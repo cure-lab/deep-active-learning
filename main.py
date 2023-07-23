@@ -15,6 +15,7 @@ import models
 from utils import print_log
 
 from sklearn.metrics import roc_auc_score
+from sklearn.metrics import f1_score  
 import sklearn.metrics as metrics
 
 
@@ -71,7 +72,7 @@ parser.add_argument('--proxy_model', type=str, default=None,
 # training hyperparameters
 parser.add_argument('--optimizer',
                     type=str,
-                    default='SGD',
+                    default='Adam',
                     choices=['SGD', 'Adam', 'YF'])
 parser.add_argument('--n_epoch', type=int, default=100,
                     help='number of training epochs in each iteration')
@@ -81,7 +82,7 @@ parser.add_argument('--schedule',
                     default=[80, 120],
                     help='Decrease learning rate at these epochs.')
 parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
-parser.add_argument('--lr', type=float, default=0.1, help='learning rate. 0.01 for semi')
+parser.add_argument('--lr', type=float, default=0.001, help='learning rate. 0.01 for semi')
 parser.add_argument('--gammas',
                     type=float,
                     nargs='+',
@@ -153,8 +154,6 @@ def main():
     ngpus = torch.cuda.device_count()
     torch.cuda.set_device(args.local_rank % ngpus)
     device = torch.device("cuda", args.local_rank)
-
-
 
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path)
@@ -252,11 +251,15 @@ def main():
     test_acc= strategy.predict(X_te, Y_te)
 
     pred_proba = strategy.predict_prob(X_te, Y_te)  # Predict class probabilities
-    # Calculate AUROC
+    # y_pred = np.argmax(pred_proba, axis=1)  
+
     y_true = np.array(Y_te)
     y_scores = pred_proba[:, 1]  # Use the probabilities of the positive class
+
+    # Calculate AUROC_bf
     auroc_bf = metrics.roc_auc_score(y_true, y_scores)
-    
+    # Calculate macro_f1_bf
+    # macro_f1_bf = f1_score(y_true, y_pred, average='macro')
     
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = test_acc
@@ -283,8 +286,10 @@ def main():
         # update
         strategy.update(idxs_lb)
         best_test_acc, auroc_it = strategy.train(alpha=alpha, n_epoch=args.n_epoch)
-
-
+ 
+        pred_proba_it = strategy.predict_prob(X_te, Y_te)
+        y_pred_it = np.argmax(pred_proba_it, axis=1)
+        macro_f1_it = f1_score(y_true, y_pred_it, average='macro')
 
         t_iter = time.time() - ts
         
@@ -293,6 +298,7 @@ def main():
         acc[rd] = best_test_acc
         print_log(str(sum(idxs_lb)) + '\t' + 'testing accuracy {}'.format(acc[rd]), log)
         print_log(str(sum(idxs_lb)) + '\t' + 'testing auroc {}'.format(auroc_it), log)
+        print_log(str(sum(idxs_lb)) + '\t' + 'testing macro f1 {}'.format(macro_f1_it), log)  
 
         print_log("logging...", log)
         with open(out_file, 'a+') as f:
@@ -312,6 +318,8 @@ def main():
                             auroc_bf,
                             auroc_it,
                             auroc_it - auroc_bf,
+                            'macro f1',
+                            macro_f1_it,
                             't_query',
                             tp,
                             't_iter',
